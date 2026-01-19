@@ -1631,7 +1631,7 @@ export class MondayService {
    */
   async changeMultipleColumnValues(boardId: string, itemId: string, columnValues: Record<string, any>): Promise<any> {
     try {
-      const columnValuesStr = JSON.stringify(columnValues).replace(/"/g, '\\"');
+      const columnValuesStr = JSON.stringify(columnValues).replaceAll("\"", '\\"');
       const mutation = `
         mutation {
           change_multiple_column_values(
@@ -1982,7 +1982,7 @@ export class MondayService {
 
         // Filtro por nome da campanha
         if (searchTerm && searchTerm.trim() !== '') {
-          const sanitizedTerm = searchTerm.replace(/"/g, '\\"');
+          const sanitizedTerm = searchTerm.replaceAll("\"", '\\"');
           console.log('[GET_CAMPAIGNS_PAGINATED] Filtro de nome:', searchTerm);
           rules.push(`{column_id: "name", compare_value: ["${sanitizedTerm}"], operator: contains_text}`);
         }
@@ -3091,7 +3091,7 @@ export class MondayService {
 
       // Campos compostos de taxonomia (text_mkr5kh2r e text_mkr3jr1s)
       const taxonomyParts = [
-        touchpointData.dataDisparo ? String(touchpointData.dataDisparo).replace(/-/g, '') : '',
+        touchpointData.dataDisparo ? String(touchpointData.dataDisparo).replaceAll("-", '') : '',
         `id-${campaignId}`,
         taxonomyUpdates['text_mkrrna7e'] || '',
         taxonomyUpdates['text_mkrrcnpx'] || '',
@@ -4098,7 +4098,7 @@ export class MondayService {
 
       // Campos compostos de taxonomia (text_mkr5kh2r e text_mkr3jr1s)
       const taxonomyParts = [
-        subitem.data__1 ? String(subitem.data__1).replace(/-/g, '') : '', // YYYYMMDD
+        subitem.data__1 ? String(subitem.data__1).replaceAll("-", '') : '', // YYYYMMDD
         `id-${campaignId}`,
         cv['text_mkrrna7e'] || '', // CÃ³digo Cliente
         cv['text_mkrrcnpx'] || '', // CÃ³digo Campanha
@@ -4141,13 +4141,13 @@ export class MondayService {
       }
 
       // Criar item no board secundÃ¡rio
-      const columnValuesJson = JSON.stringify(cv).replace(/"/g, '\\"');
+      const columnValuesJson = JSON.stringify(cv).replaceAll("\"", '\\"');
       const createMutation = `
         mutation {
           create_item(
             board_id: ${SECOND_BOARD_ID},
             group_id: "${SECOND_BOARD_GROUP_ID}",
-            item_name: "${itemName.replace(/"/g, '\\"')}",
+            item_name: "${itemName.replaceAll("\"", '\\"')}",
             create_labels_if_missing: true,
             column_values: "${columnValuesJson}"
           ) {
@@ -4711,11 +4711,11 @@ export class MondayService {
       // Monday API espera apenas o nome do label como string para change_simple_column_value
       if (typeof value === 'string') {
         // Remover aspas duplas se existirem
-        return value.replace(/^"|"$/g, '');
+        return value.replaceAll(/^"|"$/g, '');
       }
       // Se Ã© array, pegar primeiro valor (dropdowns simples sÃ³ aceitam 1 valor)
       if (Array.isArray(value)) {
-        const cleanValue = String(value[0]).replace(/^"|"$/g, '');
+        const cleanValue = String(value[0]).replaceAll(/^"|"$/g, '');
         return cleanValue;
       }
       // Se Ã© objeto com label, extrair label

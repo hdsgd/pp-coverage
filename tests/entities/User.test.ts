@@ -1,4 +1,4 @@
-import { User } from '../../src/entities/User';
+﻿import { User } from '../../src/entities/User';
 import bcrypt from 'bcryptjs';
 import { TEST_PASSWORDS, TEST_PASSWORD_HASHES } from '../config/testConstants';
 
@@ -203,8 +203,8 @@ describe('User Entity', () => {
     });
 
     it('should hash password with unicode characters', async () => {
-      const unicodePassword = 'Señor123!';
-      const hashedPassword = '$2a$10$hashedUnicodePassword';
+      const unicodePassword = TEST_PASSWORDS.UNICODE;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_UNICODE;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -290,7 +290,7 @@ describe('User Entity', () => {
     });
 
     it('should compare password with unicode characters', async () => {
-      const candidatePassword = 'Señor123!';
+      const candidatePassword = TEST_PASSWORDS.UNICODE;
       user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);

@@ -1862,14 +1862,14 @@ export class BriefingMateriaisCriativosGamService {
     itemName: string,
     columnValues: Record<string, any>
   ): Promise<string> {
-    const columnValuesJson = JSON.stringify(columnValues).replace(/"/g, '\\"');
+    const columnValuesJson = JSON.stringify(columnValues).replaceAll("\"", '\\"');
     
     const mutation = `
       mutation {
         create_item(
           board_id: ${boardId},
           group_id: "${groupId}",
-          item_name: "${itemName.replace(/"/g, '\\"')}",
+          item_name: "${itemName.replaceAll("\"", '\\"')}",
           create_labels_if_missing: true,
           column_values: "${columnValuesJson}"
         ) {

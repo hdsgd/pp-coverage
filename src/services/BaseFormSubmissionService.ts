@@ -431,14 +431,14 @@ export abstract class BaseFormSubmissionService {
     // Depois escapamos as aspas duplas para poder inserir dentro da string GraphQL
     const columnValuesJson = JSON.stringify(columnValues)
       .replace(/\\/g, '\\\\')  // Escapar barras invertidas primeiro
-      .replace(/"/g, '\\"');   // Depois escapar aspas duplas
+      .replaceAll("\"", '\\"');   // Depois escapar aspas duplas
     
     const mutation = `
       mutation {
         create_item(
           board_id: ${boardId},
           group_id: "${groupId}",
-          item_name: "${itemName.replace(/"/g, '\\"')}",
+          item_name: "${itemName.replaceAll("\"", '\\"')}",
           create_labels_if_missing: true,
           column_values: "${columnValuesJson}"
         ) {

@@ -1,4 +1,4 @@
-# Dependencies and caches
+﻿# Dependencies and caches
 node_modules
 npm-debug.log*
 yarn-debug.log*
@@ -11,7 +11,7 @@ coverage
 .tmp
 .cache
 
-# Local env files
+# Local env files - somente variáveis de ambiente, nunca copiar para container
 .env
 .env.*
 !.env.example
@@ -26,4 +26,27 @@ coverage
 .vscode
 Thumbs.db
 *.swp
-data
+
+# Dados sensíveis e arquivos locais
+data/
+MondayFiles/
+*.log
+*.sqlite
+*.db
+
+# Testes e configuração de desenvolvimento
+tests/
+*.test.ts
+*.spec.ts
+jest.config.js
+tsconfig.jest.json
+
+# Documentação não essencial
+README.md
+GUIA_DE_USO.md
+docs/
+
+# Configuração de CI/CD
+.github/
+.gitlab-ci.yml
+sonar-project.properties

@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 
 describe('fileUploadRoutes initialization behavior', () => {
   beforeEach(() => {
@@ -71,7 +71,7 @@ describe('fileUploadRoutes upload error handling', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'boom-error'
+        error: 'Erro ao processar upload'
       })
     );
     expect(consoleSpy).toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('fileUploadRoutes upload error handling', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'Erro desconhecido'
+        error: 'Erro ao processar upload'
       })
     );
   });

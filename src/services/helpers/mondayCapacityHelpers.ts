@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Helper functions extracted from MondayService for better testability
  * These functions handle capacity adjustment and touchpoint management
  */
@@ -116,7 +116,7 @@ export function formatDateToYYYYMMDD(dateStr: string): string {
   
   // YYYY-MM-DD format
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return dateStr.replace(/-/g, '');
+    return dateStr.replaceAll("-", '');
   }
   
   return dateStr;

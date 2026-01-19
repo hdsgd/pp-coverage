@@ -510,12 +510,12 @@ describe('MondayService - Helper Methods', () => {
       // Arrange
       const briefingData = {
         id: '999888',
-        texto_curto_links_validacao: 'http://link.com', // Campo customizado
+        texto_curto_links_validacao: 'https://link.com', // Campo customizado
         data__1: '2024-12-25', // data__1 vira data64 no briefing
       };
 
       const currentBriefing = {
-        linksValidacao: 'http://old.com',
+        linksValidacao: 'https://old.com',
         dataEntrega: '2024-12-20',
       };
 
@@ -770,7 +770,7 @@ describe('MondayService - Helper Methods', () => {
     it('should normalize nested text/value/url/date properties', () => {
       expect((service as any).normalizeValueForComparison({ text: 'abc' })).toBe('abc');
       expect((service as any).normalizeValueForComparison({ value: 5 })).toBe('5');
-      expect((service as any).normalizeValueForComparison({ url: 'http://url' })).toBe('http://url');
+      expect((service as any).normalizeValueForComparison({ url: 'https://url' })).toBe('https://url');
       expect((service as any).normalizeValueForComparison({ date: '2024-02-02' })).toBe('2024-02-02');
     });
 

@@ -127,13 +127,13 @@ describe('mondayFieldMappings', () => {
 
     it('should map briefing validation fields', () => {
       const input = {
-        texto_curto_links_validacao: 'http://validation.link',
+        texto_curto_links_validacao: 'https://validation.link',
         briefing_type: 'Growth'
       };
 
       const result = mapFormSubmissionToMondayData(input);
 
-      expect(result.long_text_mkrd6mnt).toBe('http://validation.link');
+      expect(result.long_text_mkrd6mnt).toBe('https://validation.link');
       expect(result.sele__o_individual9__1).toBe('Growth');
     });
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Constantes de teste seguras
  * Utiliza variáveis de ambiente ou valores gerados dinamicamente
  * para evitar hardcoding de senhas nos testes
@@ -22,6 +22,7 @@ export const TEST_PASSWORDS = {
   SPECIAL_CHARS: process.env.TEST_PASSWORD_SPECIAL || generateTestPassword(),
   LONG: process.env.TEST_PASSWORD_LONG || 'a'.repeat(200),
   NUMERIC: process.env.TEST_PASSWORD_NUMERIC || generateTestPassword(),
+  UNICODE: process.env.TEST_PASSWORD_UNICODE || generateTestPassword(),
 };
 
 /**
@@ -35,6 +36,7 @@ export const TEST_PASSWORD_HASHES = {
   BCRYPT_LONG: '$2a$10$hashedLongPassword',
   BCRYPT_ROUNDS: '$2a$10$roundsTest',
   BCRYPT_NUMERIC: '$2a$10$hashedNumericPassword',
+  BCRYPT_UNICODE: '$2a$10$hashedUnicodePassword',
 };
 
 /**
