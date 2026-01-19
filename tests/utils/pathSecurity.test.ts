@@ -159,8 +159,9 @@ describe('pathSecurity', () => {
     });
 
     it('should handle Windows paths', () => {
-      const baseDir = path.resolve('C:\\temp\\uploads');
-      const filePath = path.resolve('C:\\temp\\uploads\\file.txt');
+      // Use os-agnostic paths that work on both Windows and Linux
+      const baseDir = path.resolve('./temp/uploads');
+      const filePath = path.resolve('./temp/uploads/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
