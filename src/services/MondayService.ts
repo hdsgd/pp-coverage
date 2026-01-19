@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import { Repository } from "typeorm";
 import { AppDataSource } from "../config/database";
 import { MondayBoard } from "../entities/MondayBoard";
@@ -3704,7 +3704,7 @@ export class MondayService {
         ];
         
         return defaultTimeSlots.map(name => ({
-          item_id: `time_${name.replace(':', '')}`,
+          item_id: `time_${name.replaceAll(':', '')}`,
           name: name,
           status: 'Ativo',
           board_id: boardNumericId

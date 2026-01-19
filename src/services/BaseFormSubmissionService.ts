@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
@@ -430,7 +430,7 @@ export abstract class BaseFormSubmissionService {
     // JSON.stringify já escapa \n como \\n corretamente
     // Depois escapamos as aspas duplas para poder inserir dentro da string GraphQL
     const columnValuesJson = JSON.stringify(columnValues)
-      .replace(/\\/g, '\\\\')  // Escapar barras invertidas primeiro
+      .replaceAll(/\\/g, '\\\\')  // Escapar barras invertidas primeiro
       .replaceAll("\"", '\\"');   // Depois escapar aspas duplas
     
     const mutation = `

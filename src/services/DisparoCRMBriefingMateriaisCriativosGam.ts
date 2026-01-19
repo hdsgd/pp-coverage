@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { DataSource, Repository } from 'typeorm';
 import { buildSafePath, sanitizeFilename } from '../utils/pathSecurity';

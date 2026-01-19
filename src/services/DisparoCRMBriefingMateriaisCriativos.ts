@@ -1,4 +1,4 @@
-﻿import { MondayService } from './MondayService';
+import { MondayService } from './MondayService';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { DataSource, Repository } from 'typeorm';
 import { buildSafePath, sanitizeFilename } from '../utils/pathSecurity';
@@ -1467,8 +1467,6 @@ export class DisparoCRMBriefingMateriaisCriativosService {
     // Campos de lookup (texto)
     if (fieldName.includes('lookup_')) { /* ...existing code... */ }
 
-    // Campos de texto por padrão
-    return MondayColumnType.TEXT;
     // Campos de texto por padrão
     return MondayColumnType.TEXT;
   }

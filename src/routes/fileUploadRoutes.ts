@@ -1,4 +1,4 @@
-﻿import express, { Request, Response } from 'express';
+import express, { Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
     const uniqueSuffix = `${Date.now()}_${randomSuffix}`;
     
     // Sanitizar o nome original do arquivo (previne Path Traversal e caracteres perigosos)
-    const sanitizedOriginalName = path.basename(file.originalname).replace(/[^\w.-]/g, '_');
+    const sanitizedOriginalName = path.basename(file.originalname).replaceAll(/[^\w.-]/g, '_');
     const ext = path.extname(sanitizedOriginalName);
     const nameWithoutExt = path.basename(sanitizedOriginalName, ext);
     

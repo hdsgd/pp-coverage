@@ -1,4 +1,4 @@
-﻿import path from 'path';
+import path from 'path';
 
 /**
  * Sanitiza um nome de arquivo removendo caracteres perigosos e path traversal
@@ -21,7 +21,7 @@ export function sanitizeFilename(filename: string): string {
   sanitized = path.basename(sanitized);
   
   // Remove caracteres perigosos - regex simplificado sem backtracking
-  sanitized = sanitized.replace(/[^\w.-]/g, '_');
+  sanitized = sanitized.replaceAll(/[^\w.-]/g, '_');
   
   // Previne nomes vazios ou apenas com pontos
   if (!sanitized || /^\.+$/.test(sanitized)) {

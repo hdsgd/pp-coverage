@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { DataSource, Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
@@ -1504,8 +1504,6 @@ export class BriefingMateriaisCriativosGamService {
 
   /**
    * Insere dados dos subitems na tabela channel_schedules
-   */
-  /**
    * Insere dados dos subitems na tabela channel_schedules
    * @param subitems Array de subitems com dados de canal/data/hora
    * @param formData Dados completos do formulário para extrair area_solicitante e user_id

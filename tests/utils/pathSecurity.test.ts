@@ -1,4 +1,4 @@
-﻿import path from 'path';
+import path from 'path';
 import { sanitizeFilename, isPathInDirectory, buildSafePath } from '../../src/utils/pathSecurity';
 import * as pathSecurityModule from '../../src/utils/pathSecurity';
 
@@ -128,7 +128,7 @@ describe('pathSecurity', () => {
 
     it('should return false when path is outside directory', () => {
       const baseDir = path.resolve('./test-uploads');
-      const filePath = path.resolve('/tmp/other/file.txt');
+      const filePath = path.resolve('./test-other/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(false);
