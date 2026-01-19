@@ -62,9 +62,7 @@ jobs:
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.typescript.tsconfigPath=tsconfig.json
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.qualitygate.wait=true
 
-      - name: SonarCloud Quality Gate
-        uses: SonarSource/sonarcloud-quality-gate-action@v1.1.0
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
