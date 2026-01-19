@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, jest } from '@jest/globals';
-import type { SpyInstance } from 'jest-mock';
 
-let consoleErrorSpy: SpyInstance | undefined;
-let consoleWarnSpy: SpyInstance | undefined;
-let consoleLogSpy: SpyInstance | undefined;
+let consoleErrorSpy: jest.SpiedFunction<typeof console.error> | undefined;
+let consoleWarnSpy: jest.SpiedFunction<typeof console.warn> | undefined;
+let consoleLogSpy: jest.SpiedFunction<typeof console.log> | undefined;
 
 beforeEach(() => {
   consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);

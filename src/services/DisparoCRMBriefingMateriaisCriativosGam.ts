@@ -1103,7 +1103,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
 
         // Encontra próximo horário na lista de slots
         const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-        let nextIndex = idx >= 0 ? idx + 1 : 0;
+        const nextIndex = idx >= 0 ? idx + 1 : 0;
         
         // Se não houver próximo horário sequencial, tentar buscar QUALQUER horário disponível no dia
         if (nextIndex >= activeTimeSlots.length) {
@@ -1382,7 +1382,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
     ];
 
     for (const mapping of textMappings) {
-      let lookupValue = formData.data?.[mapping.lookup];
+      const lookupValue = formData.data?.[mapping.lookup];
       if (lookupValue !== undefined && lookupValue !== null) {
         columnValues[mapping.textField] = String(lookupValue);
       }
