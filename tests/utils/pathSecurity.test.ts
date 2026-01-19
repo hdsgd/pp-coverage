@@ -111,23 +111,23 @@ describe('pathSecurity', () => {
 
   describe('isPathInDirectory', () => {
     it('should return true when path is inside directory', () => {
-      const baseDir = path.resolve('/tmp/uploads');
-      const filePath = path.resolve('/tmp/uploads/file.txt');
+      const baseDir = path.resolve('./test-uploads');
+      const filePath = path.resolve('./test-uploads/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
     });
 
     it('should return true for subdirectory path', () => {
-      const baseDir = path.resolve('/tmp/uploads');
-      const filePath = path.resolve('/tmp/uploads/subdir/file.txt');
+      const baseDir = path.resolve('./test-uploads');
+      const filePath = path.resolve('./test-uploads/subdir/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
     });
 
     it('should return false when path is outside directory', () => {
-      const baseDir = path.resolve('/tmp/uploads');
+      const baseDir = path.resolve('./test-uploads');
       const filePath = path.resolve('/tmp/other/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
@@ -135,8 +135,8 @@ describe('pathSecurity', () => {
     });
 
     it('should return false for path traversal attempts', () => {
-      const baseDir = path.resolve('/tmp/uploads');
-      const filePath = path.resolve('/tmp/uploads/../../../etc/passwd');
+      const baseDir = path.resolve('./test-uploads');
+      const filePath = path.resolve('./test-uploads/../../../etc/passwd');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(false);
@@ -151,8 +151,8 @@ describe('pathSecurity', () => {
     });
 
     it('should return true when paths are exactly the same', () => {
-      const baseDir = path.resolve('/tmp/uploads');
-      const filePath = path.resolve('/tmp/uploads');
+      const baseDir = path.resolve('./test-uploads');
+      const filePath = path.resolve('./test-uploads');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
@@ -168,23 +168,23 @@ describe('pathSecurity', () => {
     });
 
     it('should handle paths with trailing slashes', () => {
-      const baseDir = path.resolve('/tmp/uploads/');
-      const filePath = path.resolve('/tmp/uploads/file.txt');
+      const baseDir = path.resolve('./test-uploads/');
+      const filePath = path.resolve('./test-uploads/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
     });
 
     it('should handle nested directories', () => {
-      const baseDir = path.resolve('/tmp/uploads');
-      const filePath = path.resolve('/tmp/uploads/a/b/c/file.txt');
+      const baseDir = path.resolve('./test-uploads');
+      const filePath = path.resolve('./test-uploads/a/b/c/file.txt');
       
       const result = isPathInDirectory(filePath, baseDir);
       expect(result).toBe(true);
     });
 
     it('should return false when filePath is parent of baseDir', () => {
-      const baseDir = path.resolve('/tmp/uploads');
+      const baseDir = path.resolve('./test-uploads');
       const filePath = path.resolve('/tmp');
       
       const result = isPathInDirectory(filePath, baseDir);
@@ -193,7 +193,7 @@ describe('pathSecurity', () => {
   });
 
   describe('buildSafePath', () => {
-    const baseDir = path.resolve('/tmp/uploads');
+    const baseDir = path.resolve('./test-uploads');
 
     it('should build safe path with valid filename', () => {
       const result = buildSafePath(baseDir, 'file.txt');
@@ -242,7 +242,7 @@ describe('pathSecurity', () => {
     });
 
     it('should work with subdirectories in baseDir', () => {
-      const subBaseDir = path.resolve('/tmp/uploads/user123');
+      const subBaseDir = path.resolve('./test-uploads/user123');
       const result = buildSafePath(subBaseDir, 'document.pdf');
       
       expect(result).toBe(path.join(subBaseDir, 'document.pdf'));
@@ -324,7 +324,7 @@ describe('pathSecurity', () => {
 
   describe('Integration tests', () => {
     it('should handle complete workflow', () => {
-      const baseDir = path.resolve('/tmp/uploads');
+      const baseDir = path.resolve('./test-uploads');
       const userInput = '../../../etc/../tmp/uploads/../../etc/passwd';
       
       // Should sanitize and build safe path
@@ -360,7 +360,7 @@ describe('pathSecurity', () => {
     it('should throw when sanitized path ends up outside baseDir', () => {
       // This is a theoretical edge case - in practice sanitizeFilename
       // prevents this, but we test the validation anyway
-      const baseDir = path.resolve('/tmp/uploads');
+      const baseDir = path.resolve('./test-uploads');
       
       // Try to trick the system by providing an absolute path in a different location
       // After sanitization, it should be just the basename, but we're testing

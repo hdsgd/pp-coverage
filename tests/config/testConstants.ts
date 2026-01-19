@@ -1,14 +1,17 @@
-﻿/**
+﻿import crypto from 'crypto';
+
+/**
  * Constantes de teste seguras
  * Utiliza variáveis de ambiente ou valores gerados dinamicamente
  * para evitar hardcoding de senhas nos testes
  */
 
 /**
- * Gera uma senha de teste aleatória
+ * Gera uma senha de teste aleatória usando crypto seguro
  */
 export const generateTestPassword = (): string => {
-  return `Test_${Math.random().toString(36).substring(2, 15)}${Date.now()}`;
+  const randomBytes = crypto.randomBytes(8).toString('hex');
+  return `Test_${randomBytes}_${Date.now()}`;
 };
 
 /**
