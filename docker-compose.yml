@@ -1,0 +1,55 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: picpay-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: MN,Bkx39^!1N>7ok5.Y
+      MYSQL_DATABASE: picpay_db
+      MYSQL_USER: picpay_db
+      MYSQL_PASSWORD: MN,Bkx39^!1N>7ok5.Y
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - picpay_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  picpay-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gustavosantosilegra/picpay-api:latest
+    container_name: picpay-api
+    # Load environment from local .env, and override with .env.docker when present
+    env_file:
+      - .env
+    environment:
+      # Fallbacks if not provided in env files
+      NODE_ENV: production
+      PORT: ${PORT-3000}
+      API_PREFIX: ${API_PREFIX-/api/v1}
+      DB_HOST_SQL: mysql
+      DB_PORT_SQL: 3306
+      DB_USERNAME: picpay_db
+      DB_PASSWORD: MN,Bkx39^!1N>7ok5.Y
+      DB_DATABASE: picpay_db
+    ports:
+      - "${PORT-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - picpay_net
+
+volumes:
+  mysql_data:
+
+networks:
+  picpay_net:
+    driver: bridge
