@@ -1,15 +1,10 @@
-name: CI - Tests and SonarCloud
+﻿name: CI - Tests and SonarCloud
 
 on:
   push:
     branches:
       - main
       - develop
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
 
 permissions:
   contents: read
@@ -64,5 +59,3 @@ jobs:
             -Dsonar.typescript.tsconfigPath=tsconfig.json
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.qualitygate.wait=true
-
-
