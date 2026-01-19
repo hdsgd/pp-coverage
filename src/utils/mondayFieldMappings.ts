@@ -1,4 +1,4 @@
-// Map form-submission data to Monday payload using provided correlation rules.
+﻿// Map form-submission data to Monday payload using provided correlation rules.
 
 export type MappingFormat = 'label' | 'date' | 'number' | 'board_relation' | 'identity';
 
@@ -55,7 +55,7 @@ function applyFormat(value: any, format?: MappingFormat): any {
   switch (format) {
     case 'number': {
       const num = Number(value);
-      return isNaN(num) ? value : num;
+      return Number.isNaN(num) ? value : num;
     }
     case 'date':
   // Keep as string; downstream service formats date
@@ -116,7 +116,7 @@ export function mapFormSubmissionToMondayData(inputData: Record<string, any>): R
       .map((s: any) => s?.['data__1'])
       .filter((d: any) => typeof d === 'string' && d.trim().length > 0)
       .map((d: string) => ({ str: d, time: Date.parse(d) }))
-      .filter((d) => !isNaN(d.time));
+      .filter((d) => !Number.isNaN(d.time));
 
     if (dated.length > 0) {
       const min = dated.slice(1).reduce((acc, cur) => (cur.time < acc.time ? cur : acc), dated[0]);

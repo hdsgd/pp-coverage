@@ -2,6 +2,7 @@ import { DataSource, Repository } from 'typeorm';
 import { AuthController } from '../../src/controllers/AuthController';
 import { User } from '../../src/entities/User';
 import jwt from 'jsonwebtoken';
+import { TEST_PASSWORDS, TEST_PASSWORD_HASHES, TEST_USERS } from '../config/testConstants';
 
 // Mock do jsonwebtoken
 jest.mock('jsonwebtoken');
@@ -13,8 +14,12 @@ describe('AuthController', () => {
     let mockResponse: any;
     let mockDataSource: jest.Mocked<DataSource>;
     let mockUser: any;
+    let testPassword: string;
 
     beforeEach(() => {
+        // Gera senha segura para este teste
+        testPassword = TEST_PASSWORDS.VALID;
+
         // Mock do User Repository
         mockUserRepository = {
             findOne: jest.fn(),
@@ -40,9 +45,9 @@ describe('AuthController', () => {
         // Mock do User
         mockUser = {
             id: 'user-123',
-            username: 'testuser',
-            password: 'hashed_password',
-            role: 'user',
+            username: TEST_USERS.USER.username,
+            password: TEST_PASSWORD_HASHES.BCRYPT_HASH,
+            role: TEST_USERS.USER.role,
             is_active: true,
             comparePassword: jest.fn(),
         };
@@ -63,8 +68,8 @@ describe('AuthController', () => {
         beforeEach(() => {
             mockRequest = {
                 body: {
-                    username: 'testuser',
-                    password: 'password123'
+                    username: TEST_USERS.USER.username,
+                    password: testPassword
                 }
             };
         });
@@ -78,14 +83,14 @@ describe('AuthController', () => {
             await controller.login(mockRequest, mockResponse);
 
             expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-                where: { username: 'testuser' }
+                where: { username: TEST_USERS.USER.username }
             });
-            expect(mockUser.comparePassword).toHaveBeenCalledWith('password123');
+            expect(mockUser.comparePassword).toHaveBeenCalledWith(testPassword);
             expect(jwt.sign).toHaveBeenCalledWith(
                 {
                     userId: 'user-123',
-                    username: 'testuser',
-                    role: 'user'
+                    username: TEST_USERS.USER.username,
+                    role: TEST_USERS.USER.role
                 },
                 'test-secret',
                 { expiresIn: '8h' }
@@ -95,8 +100,8 @@ describe('AuthController', () => {
                 token: mockToken,
                 user: {
                     id: 'user-123',
-                    username: 'testuser',
-                    role: 'user'
+                    username: TEST_USERS.USER.username,
+                    role: TEST_USERS.USER.role
                 }
             });
         });
@@ -142,7 +147,7 @@ describe('AuthController', () => {
             await controller.login(mockRequest, mockResponse);
 
             expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-                where: { username: 'testuser' }
+                where: { username: TEST_USERS.USER.username }
             });
             expect(mockResponse.status).toHaveBeenCalledWith(401);
             expect(mockResponse.json).toHaveBeenCalledWith({
@@ -169,7 +174,7 @@ describe('AuthController', () => {
 
             await controller.login(mockRequest, mockResponse);
 
-            expect(mockUser.comparePassword).toHaveBeenCalledWith('password123');
+            expect(mockUser.comparePassword).toHaveBeenCalledWith(testPassword);
             expect(mockResponse.status).toHaveBeenCalledWith(401);
             expect(mockResponse.json).toHaveBeenCalledWith({
                 error: 'Credenciais inválidas'
@@ -221,7 +226,7 @@ describe('AuthController', () => {
         });
 
         it('deve incluir role de admin no token se usuário for admin', async () => {
-            mockUser.role = 'admin';
+            mockUser.role = TEST_USERS.ADMIN.role;
             const mockToken = 'mock.jwt.token';
             mockUserRepository.findOne.mockResolvedValue(mockUser);
             mockUser.comparePassword.mockResolvedValue(true);
@@ -232,8 +237,8 @@ describe('AuthController', () => {
             expect(jwt.sign).toHaveBeenCalledWith(
                 {
                     userId: 'user-123',
-                    username: 'testuser',
-                    role: 'admin'
+                    username: TEST_USERS.USER.username,
+                    role: TEST_USERS.ADMIN.role
                 },
                 expect.any(String),
                 expect.any(Object)
@@ -241,8 +246,8 @@ describe('AuthController', () => {
         });
 
         it('deve fazer login com username contendo caracteres especiais', async () => {
-            mockRequest.body.username = 'test.user@domain.com';
-            mockUser.username = 'test.user@domain.com';
+            mockRequest.body.username = TEST_USERS.USER.email;
+            mockUser.username = TEST_USERS.USER.email;
             const mockToken = 'mock.jwt.token';
             mockUserRepository.findOne.mockResolvedValue(mockUser);
             mockUser.comparePassword.mockResolvedValue(true);
@@ -251,7 +256,7 @@ describe('AuthController', () => {
             await controller.login(mockRequest, mockResponse);
 
             expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-                where: { username: 'test.user@domain.com' }
+                where: { username: TEST_USERS.USER.email }
             });
             expect(mockResponse.json).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -269,8 +274,8 @@ describe('AuthController', () => {
             mockRequest = {
                 user: {
                     userId: 'user-123',
-                    username: 'testuser',
-                    role: 'user'
+                    username: TEST_USERS.USER.username,
+                    role: TEST_USERS.USER.role
                 }
             };
         });
@@ -286,8 +291,8 @@ describe('AuthController', () => {
             expect(mockResponse.json).toHaveBeenCalledWith({
                 user: {
                     id: 'user-123',
-                    username: 'testuser',
-                    role: 'user',
+                    username: TEST_USERS.USER.username,
+                    role: TEST_USERS.USER.role,
                     is_active: true
                 }
             });
@@ -342,14 +347,14 @@ describe('AuthController', () => {
         });
 
         it('deve retornar informações de usuário admin', async () => {
-            mockUser.role = 'admin';
+            mockUser.role = TEST_USERS.ADMIN.role;
             mockUserRepository.findOne.mockResolvedValue(mockUser);
 
             await controller.me(mockRequest, mockResponse);
 
             expect(mockResponse.json).toHaveBeenCalledWith({
                 user: expect.objectContaining({
-                    role: 'admin'
+                    role: TEST_USERS.ADMIN.role
                 })
             });
         });

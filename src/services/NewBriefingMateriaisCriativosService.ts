@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+﻿import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { 
   BRIEFING_MATERIAIS_CRIATIVOS_FORM_MAPPING, 
@@ -158,7 +158,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
       
       if (mapping) {
         const value = data[mapping.field];
-        if (!value || isNaN(Number(value)) || Number(value) <= 0) {
+        if (!value || Number.isNaN(Number(value)) || Number(value) <= 0) {
           errors.push(`Campo "${mapping.name}" é obrigatório e deve ser um número maior que zero quando "${entregaStr}" é selecionado`);
         }
       }
@@ -569,7 +569,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
     if (br) return `${br[3]}${br[2]}${br[1]}`;
     // Tentar Date.parse
     const d = new Date(s);
-    if (!isNaN(d.getTime())) {
+    if (!Number.isNaN(d.getTime())) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");

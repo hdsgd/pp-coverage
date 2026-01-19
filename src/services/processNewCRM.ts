@@ -1,4 +1,4 @@
-import { DataSource, Repository } from 'typeorm';
+﻿import { DataSource, Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
@@ -888,7 +888,7 @@ export class NewCRMService extends BaseFormSubmissionService {
         const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
           ? Number(canalItem.max_value)
           : undefined;
-        if (maxValue === undefined || isNaN(maxValue)) {
+        if (maxValue === undefined || Number.isNaN(maxValue)) {
           continue;
         }
 
@@ -997,7 +997,7 @@ export class NewCRMService extends BaseFormSubmissionService {
     }
 
     schedules.forEach(schedule => {
-      const qtd = parseFloat(schedule.qtd.toString());
+      const qtd = Number.parseFloat(schedule.qtd.toString());
       const tipo = schedule.tipo || 'agendamento';
       const area = schedule.area_solicitante || 'Não especificada';
 
@@ -1045,9 +1045,9 @@ export class NewCRMService extends BaseFormSubmissionService {
       d = new Date(y, mm - 1, dd);
     } else {
       const parsed = new Date(s);
-      d = isNaN(parsed.getTime()) ? null : parsed;
+      d = Number.isNaN(parsed.getTime()) ? null : parsed;
     }
-    return d && !isNaN(d.getTime()) ? d : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
   }
 
   /** Zera hora/min/seg/ms da data para comparação igual ao tipo date */
@@ -1400,7 +1400,7 @@ export class NewCRMService extends BaseFormSubmissionService {
 
       case MondayColumnType.NUMBER: {
         const num = Number(value);
-        return isNaN(num) ? undefined : num;
+        return Number.isNaN(num) ? undefined : num;
       }
 
       case MondayColumnType.STATUS:
@@ -1628,7 +1628,7 @@ export class NewCRMService extends BaseFormSubmissionService {
     if (br) return `${br[3]}${br[2]}${br[1]}`;
     // Tentar Date.parse
     const d = new Date(s);
-    if (!isNaN(d.getTime())) {
+    if (!Number.isNaN(d.getTime())) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
@@ -1691,7 +1691,7 @@ export class NewCRMService extends BaseFormSubmissionService {
     
     // Se é um número (ID/index), usar index
     if (/^\d+$/.test(statusValue)) {
-      return { index: parseInt(statusValue, 10) };
+      return { index: Number.parseInt(statusValue, 10) };
     }
     
     // Se é texto, usar label (Monday tentará resolver)
@@ -1714,7 +1714,7 @@ export class NewCRMService extends BaseFormSubmissionService {
       
       // Se é um número (ID), adicionar aos números
       if (/^\d+$/.test(strVal)) {
-        processedNumbers.push(parseInt(strVal, 10));
+        processedNumbers.push(Number.parseInt(strVal, 10));
       } else {
         // Se é texto, adicionar às strings (labels)
         processedStrings.push(strVal);

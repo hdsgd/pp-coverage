@@ -1,5 +1,6 @@
 import { User } from '../../src/entities/User';
 import bcrypt from 'bcryptjs';
+import { TEST_PASSWORDS, TEST_PASSWORD_HASHES } from '../config/testConstants';
 
 // Mock bcryptjs
 jest.mock('bcryptjs', () => ({
@@ -19,7 +20,7 @@ describe('User Entity', () => {
     it('should create user with all properties', () => {
       user.id = 'user_uuid_123';
       user.username = 'testuser';
-      user.password = 'hashedpassword';
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
       user.role = 'admin';
       user.is_active = true;
       user.created_at = new Date('2025-12-01T00:00:00.000Z');
@@ -27,7 +28,7 @@ describe('User Entity', () => {
 
       expect(user.id).toBe('user_uuid_123');
       expect(user.username).toBe('testuser');
-      expect(user.password).toBe('hashedpassword');
+      expect(user.password).toBe(TEST_PASSWORD_HASHES.BCRYPT_HASH);
       expect(user.role).toBe('admin');
       expect(user.is_active).toBe(true);
       expect(user.created_at).toBeInstanceOf(Date);
@@ -99,8 +100,8 @@ describe('User Entity', () => {
 
   describe('hashPassword method', () => {
     it('should hash password before insert/update when password is plain text', async () => {
-      const plainPassword = 'myPlainPassword123';
-      const hashedPassword = '$2a$10$hashedPasswordValue';
+      const plainPassword = TEST_PASSWORDS.VALID;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_HASH;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -112,7 +113,7 @@ describe('User Entity', () => {
     });
 
     it('should not hash password if already hashed (starts with $2a$)', async () => {
-      const alreadyHashedPassword = '$2a$10$alreadyHashedPasswordValue';
+      const alreadyHashedPassword = TEST_PASSWORD_HASHES.BCRYPT_HASH;
       
       user.password = alreadyHashedPassword;
       await user.hashPassword();
@@ -138,8 +139,8 @@ describe('User Entity', () => {
     });
 
     it('should hash password starting with $2b$ (not detected as bcrypt)', async () => {
-      const bcryptPassword = '$2b$10$hashedWithDifferentVersion';
-      const hashedPassword = '$2a$10$rehashedPassword';
+      const bcryptPassword = TEST_PASSWORD_HASHES.BCRYPT_ALT;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_REHASHED;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -151,8 +152,8 @@ describe('User Entity', () => {
     });
 
     it('should hash password with special characters', async () => {
-      const specialPassword = 'P@ssw0rd!#$%^&*()';
-      const hashedPassword = '$2a$10$hashedSpecialPassword';
+      const specialPassword = TEST_PASSWORDS.SPECIAL_CHARS;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_SPECIAL;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -164,8 +165,8 @@ describe('User Entity', () => {
     });
 
     it('should hash very long password', async () => {
-      const longPassword = 'a'.repeat(200);
-      const hashedPassword = '$2a$10$hashedLongPassword';
+      const longPassword = TEST_PASSWORDS.LONG;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_LONG;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -177,8 +178,8 @@ describe('User Entity', () => {
     });
 
     it('should handle bcrypt hash with 10 rounds', async () => {
-      const plainPassword = 'password123';
-      const hashedPassword = '$2a$10$roundsTest';
+      const plainPassword = TEST_PASSWORDS.VALID;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_ROUNDS;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -189,8 +190,8 @@ describe('User Entity', () => {
     });
 
     it('should hash password with numbers', async () => {
-      const numericPassword = '123456789';
-      const hashedPassword = '$2a$10$hashedNumericPassword';
+      const numericPassword = TEST_PASSWORDS.NUMERIC;
+      const hashedPassword = TEST_PASSWORD_HASHES.BCRYPT_NUMERIC;
       
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
       
@@ -217,8 +218,8 @@ describe('User Entity', () => {
 
   describe('comparePassword method', () => {
     it('should return true when passwords match', async () => {
-      const candidatePassword = 'myPassword123';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.VALID;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -229,8 +230,8 @@ describe('User Entity', () => {
     });
 
     it('should return false when passwords do not match', async () => {
-      const candidatePassword = 'wrongPassword';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.WEAK;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -242,7 +243,7 @@ describe('User Entity', () => {
 
     it('should handle empty candidate password', async () => {
       const candidatePassword = '';
-      user.password = '$2a$10$hashedPasswordValue';
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -253,8 +254,8 @@ describe('User Entity', () => {
     });
 
     it('should compare password with special characters', async () => {
-      const candidatePassword = 'P@ssw0rd!#$';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.SPECIAL_CHARS;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -265,8 +266,8 @@ describe('User Entity', () => {
     });
 
     it('should compare very long password', async () => {
-      const candidatePassword = 'a'.repeat(200);
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.LONG;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -277,8 +278,8 @@ describe('User Entity', () => {
     });
 
     it('should handle numeric candidate password', async () => {
-      const candidatePassword = '123456789';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.NUMERIC;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -290,7 +291,7 @@ describe('User Entity', () => {
 
     it('should compare password with unicode characters', async () => {
       const candidatePassword = 'Señor123!';
-      user.password = '$2a$10$hashedPasswordValue';
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -301,8 +302,8 @@ describe('User Entity', () => {
     });
 
     it('should handle bcrypt compare rejection', async () => {
-      const candidatePassword = 'password123';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = TEST_PASSWORDS.VALID;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockRejectedValue(new Error('Bcrypt error'));
 
@@ -310,8 +311,8 @@ describe('User Entity', () => {
     });
 
     it('should compare against different hash versions ($2b$)', async () => {
-      const candidatePassword = 'password123';
-      user.password = '$2b$10$differentHashVersion';
+      const candidatePassword = TEST_PASSWORDS.VALID;
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_ALT;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -322,8 +323,8 @@ describe('User Entity', () => {
     });
 
     it('should handle password comparison with whitespace', async () => {
-      const candidatePassword = '  password123  ';
-      user.password = '$2a$10$hashedPasswordValue';
+      const candidatePassword = '  ' + TEST_PASSWORDS.VALID + '  ';
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
 
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 

@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
@@ -266,7 +266,7 @@ export abstract class BaseFormSubmissionService {
 
       case MondayColumnType.NUMBER: {
         const num = Number(value);
-        return isNaN(num) ? undefined : num;
+        return Number.isNaN(num) ? undefined : num;
       }
 
       case MondayColumnType.STATUS:
@@ -371,20 +371,20 @@ export abstract class BaseFormSubmissionService {
     
     // Se já é um objeto com item_ids, retorna como está
     if (typeof value === 'object' && Array.isArray(value.item_ids)) {
-      return { item_ids: value.item_ids.map((id: any) => parseInt(String(id), 10)) };
+      return { item_ids: value.item_ids.map((id: any) => Number.parseInt(String(id), 10)) };
     }
     
     // Se é uma string ou número (ID do item), retorna como array
     if (typeof value === 'string' || typeof value === 'number') {
-      const itemId = parseInt(String(value), 10);
-      if (!isNaN(itemId)) {
+      const itemId = Number.parseInt(String(value), 10);
+      if (!Number.isNaN(itemId)) {
         return { item_ids: [itemId] };
       }
     }
     
     // Se é um array, assume que são IDs de item
     if (Array.isArray(value)) {
-      const itemIds = value.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
+      const itemIds = value.map(id => Number.parseInt(String(id), 10)).filter(id => !Number.isNaN(id));
       if (itemIds.length > 0) {
         return { item_ids: itemIds };
       }
@@ -529,7 +529,7 @@ export abstract class BaseFormSubmissionService {
     
     // Se é um número (ID/index), usar index
     if (/^\d+$/.test(statusValue)) {
-      return { index: parseInt(statusValue, 10) };
+      return { index: Number.parseInt(statusValue, 10) };
     }
     
     // Se é texto, usar label (Monday tentará resolver)
@@ -552,7 +552,7 @@ export abstract class BaseFormSubmissionService {
       
       // Se é um número (ID), adicionar aos números
       if (/^\d+$/.test(strVal)) {
-        processedNumbers.push(parseInt(strVal, 10));
+        processedNumbers.push(Number.parseInt(strVal, 10));
       } else {
         // Se é texto, adicionar às strings (labels)
         processedStrings.push(strVal);

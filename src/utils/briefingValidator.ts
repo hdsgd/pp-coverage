@@ -1,79 +1,91 @@
-/**
+﻿/**
  * Classe utilitária para validação de campos de briefing
  * Consolida as regras de validação duplicadas em vários serviços
  */
 export class BriefingValidator {
   /**
+   * Campos comuns a múltiplos tipos de briefing
+   */
+  private static readonly COMMON_REQUIRED_FIELDS = [
+    { key: 'long_text_mksehp7a', name: 'Contexto da Comunicação' },
+    { key: 'sele__o_m_ltipla__1', name: 'Objetivo Principal da Comunicação' },
+    { key: 'sele__o_m_ltipla1__1', name: 'Ação Esperada' },
+    { key: 'texto_curto23__1', name: 'Chamada para ação (CTA)' },
+    { key: 'texto_curto8__1', name: 'Obrigatoriedades' },
+    { key: 'data__1', name: 'Data de entrega desejada' },
+    { key: 'lista_suspensa__1', name: 'Benefício do Produto' },
+    { key: 'lista_suspensa9__1', name: 'Gatilho mental' },
+    { key: 'sele__o_m_ltipla18__1', name: 'Tipo de Entrega' }
+  ];
+
+  /**
+   * Campos específicos de Conteúdo/Redes Sociais
+   */
+  private static readonly CONTEUDO_SPECIFIC_FIELDS = [
+    { key: 'text_mksn5est', name: 'Hero' },
+    { key: 'text_mksns2p1', name: 'Tensão/Oportunidade' },
+    { key: 'long_text_mksn15gd', name: 'Posicionamento e mensagem Principal' }
+  ];
+
+  /**
+   * Valida array de campos obrigatórios
+   */
+  private static validateFields(
+    data: Record<string, any>,
+    fields: Array<{ key: string; name: string }>,
+    errorMessage: string,
+    errors: string[]
+  ): void {
+    for (const field of fields) {
+      if (!data[field.key] || String(data[field.key]).trim() === '') {
+        errors.push(`Campo "${field.name}" ${errorMessage}`);
+      }
+    }
+  }
+
+  /**
    * Validações para Growth/BU/Marca: todos os campos são obrigatórios
    */
   static validateGrowthBUMarcaFields(data: Record<string, any>, errors: string[]): void {
+    const errorMessage = 'é obrigatório para briefings do tipo Growth/BU/Marca';
+    
     // Validação especial para Área Solicitante (aceita briefing_requesting_area OU lookup_mkrt36cj)
     const hasAreaSolicitante = (data['briefing_requesting_area'] && String(data['briefing_requesting_area']).trim()) ||
                                (data['lookup_mkrt36cj'] && String(data['lookup_mkrt36cj']).trim());
     if (!hasAreaSolicitante) {
-      errors.push('Campo "Área Solicitante" é obrigatório para briefings do tipo Growth/BU/Marca');
+      errors.push(`Campo "Área Solicitante" ${errorMessage}`);
     }
 
-    const requiredFields = [
-      { key: 'long_text_mksehp7a', name: 'Contexto da Comunicação' },
-      { key: 'sele__o_m_ltipla__1', name: 'Objetivo Principal da Comunicação' },
-      { key: 'sele__o_m_ltipla1__1', name: 'Ação Esperada' },
-      { key: 'texto_curto23__1', name: 'Chamada para ação (CTA)' },
-      { key: 'texto_curto8__1', name: 'Obrigatoriedades' },
-      { key: 'data__1', name: 'Data de entrega desejada' },
-      { key: 'lista_suspensa__1', name: 'Benefício do Produto' },
-      { key: 'lista_suspensa9__1', name: 'Gatilho mental' },
-      { key: 'sele__o_m_ltipla18__1', name: 'Tipo de Entrega' }
-    ];
-
-    for (const field of requiredFields) {
-      if (!data[field.key] || String(data[field.key]).trim() === '') {
-        errors.push(`Campo "${field.name}" é obrigatório para briefings do tipo Growth/BU/Marca`);
-      }
-    }
+    // Valida campos comuns
+    this.validateFields(data, this.COMMON_REQUIRED_FIELDS, errorMessage, errors);
   }
 
   /**
    * Validações para Conteúdo/Redes Sociais: campos específicos de conteúdo
    */
   static validateConteudoRedesSociaisFields(data: Record<string, any>, errors: string[]): void {
-    const requiredFields = [
-      { key: 'text_mksn5est', name: 'Hero' },
-      { key: 'text_mksns2p1', name: 'Tensão/Oportunidade' },
-      { key: 'long_text_mksn15gd', name: 'Posicionamento e mensagem Principal' },
-      { key: 'long_text_mksehp7a', name: 'Contexto da Comunicação' },
-      { key: 'sele__o_m_ltipla__1', name: 'Objetivo Principal da Comunicação' },
-      { key: 'sele__o_m_ltipla1__1', name: 'Ação Esperada' },
-      { key: 'texto_curto23__1', name: 'Chamada para ação (CTA)' },
-      { key: 'texto_curto8__1', name: 'Obrigatoriedades' },
-      { key: 'data__1', name: 'Data de entrega desejada' },
-      { key: 'lista_suspensa__1', name: 'Benefício do Produto' },
-      { key: 'lista_suspensa9__1', name: 'Gatilho mental' },
-      { key: 'sele__o_m_ltipla18__1', name: 'Tipo de Entrega' }
-    ];
-
-    for (const field of requiredFields) {
-      if (!data[field.key] || String(data[field.key]).trim() === '') {
-        errors.push(`Campo "${field.name}" é obrigatório para briefings do tipo Conteúdo/Redes Sociais`);
-      }
-    }
+    const errorMessage = 'é obrigatório para briefings do tipo Conteúdo/Redes Sociais';
+    
+    // Valida campos específicos de conteúdo
+    this.validateFields(data, this.CONTEUDO_SPECIFIC_FIELDS, errorMessage, errors);
+    
+    // Valida campos comuns
+    this.validateFields(data, this.COMMON_REQUIRED_FIELDS, errorMessage, errors);
   }
 
   /**
    * Validações para Validação: apenas campos básicos + links de validação
    */
   static validateValidacaoFields(data: Record<string, any>, errors: string[]): void {
+    const errorMessage = 'é obrigatório para briefings do tipo Validação';
+    
     const requiredFields = [
       { key: 'long_text_mksehp7a', name: 'Contexto da Comunicação' },
       { key: 'sele__o_m_ltipla18__1', name: 'Tipo de Entrega' },
       { key: 'long_text_mkrd6mnt', name: 'Links úteis para validação' }
     ];
 
-    for (const field of requiredFields) {
-      if (!data[field.key] || String(data[field.key]).trim() === '') {
-        errors.push(`Campo "${field.name}" é obrigatório para briefings do tipo Validação`);
-      }
-    }
+    this.validateFields(data, requiredFields, errorMessage, errors);
   }
 
   /**
@@ -96,7 +108,7 @@ export class BriefingValidator {
       'Webview': { field: 'n_meros37__1', name: 'Número de peças Webview' },
       'WhatsApp Carrossel': { field: 'numeric_mkqqwthm', name: 'Número de peças WhatsApp Carrossel' },
       'Lojas de App': { field: 'n_meros__1', name: 'Número de peças Lojas de App' },
-      'Push': { field: 'n_meros9__1', name: 'Número de peças Push' },
+      'Push': { field: 'n_meros9__1', name:'Número de peças Push' },
       'SMS': { field: 'n_meros43__1', name: 'Número de peças SMS' },
       'E-mail MKT': { field: 'n_meros1__1', name: 'Número de peças E-mail MKT' },
       'Vídeo': { field: 'n_meros4__1', name: 'Número de peças Vídeo' },
@@ -120,7 +132,7 @@ export class BriefingValidator {
       
       if (mapping) {
         const value = data[mapping.field];
-        if (!value || isNaN(Number(value)) || Number(value) <= 0) {
+        if (!value || Number.isNaN(Number(value)) || Number(value) <= 0) {
           errors.push(`Campo "${mapping.name}" é obrigatório e deve ser um número maior que zero quando "${entregaStr}" é selecionado`);
         }
       }

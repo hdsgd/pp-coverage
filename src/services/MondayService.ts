@@ -859,8 +859,8 @@ export class MondayService {
   private getMaxVolumeValue(item: any): number | undefined {
     const maxVolumeText = this.getColumnValueByTitle(item, "Max Volume Hora");
     
-    if (maxVolumeText && !isNaN(parseFloat(maxVolumeText))) {
-      return parseFloat(maxVolumeText);
+    if (maxVolumeText && !Number.isNaN(Number.parseFloat(maxVolumeText))) {
+      return Number.parseFloat(maxVolumeText);
     }
     
     return undefined;
@@ -1270,7 +1270,7 @@ export class MondayService {
         return { disponivelHoras: [] };
       }
 
-      const maxValue = parseFloat(canalItem.max_value?.toString() || '0');
+      const maxValue = Number.parseFloat(canalItem.max_value?.toString() || '0');
   console.log(`Max value para canal ${channelName}: ${maxValue}`);
 
       // 4. Converter string de data para Date object
@@ -1362,7 +1362,7 @@ export class MondayService {
         let totalReservadoMesmaArea = 0;
 
         schedulesForThisHour.forEach(schedule => {
-          const qtd = parseFloat(schedule.qtd.toString());
+          const qtd = Number.parseFloat(schedule.qtd.toString());
           const tipo = schedule.tipo || 'agendamento';
           
           if (tipo === 'agendamento') {
@@ -1436,7 +1436,7 @@ export class MondayService {
         let totalReservadoMesmaArea = 0;
 
         schedulesForHour.forEach(schedule => {
-          const qtd = parseFloat(schedule.qtd.toString());
+          const qtd = Number.parseFloat(schedule.qtd.toString());
           const tipo = schedule.tipo || 'agendamento';
           
           if (tipo === 'agendamento') {
@@ -2404,7 +2404,7 @@ export class MondayService {
 
       // Numbers - retornar como nÃºmero
       if (columnType === 'numbers') {
-        return text ? parseFloat(text) : null;
+        return text ? Number.parseFloat(text) : null;
       }
 
       // People - retornar IDs separados por vÃ­rgula (formato que o front envia)
@@ -3887,7 +3887,7 @@ export class MondayService {
 
     let totalOcupado = 0;
     schedules.forEach(schedule => {
-      const qtd = parseFloat(schedule.qtd.toString());
+      const qtd = Number.parseFloat(schedule.qtd.toString());
       const tipo = schedule.tipo || 'agendamento';
       console.log(`[SUM_RESERVED]   - Tipo: ${tipo}, Qtd: ${qtd.toLocaleString('pt-BR')}, Ãrea: ${schedule.area_solicitante}`);
 

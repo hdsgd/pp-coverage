@@ -3,6 +3,7 @@ import { DataSource, Repository } from 'typeorm';
 import express from 'express';
 import request from 'supertest';
 import { AuthController } from '../../src/controllers/AuthController';
+import { TEST_PASSWORDS, TEST_USERS } from '../config/testConstants';
 
 describe('Auth Routes', () => {
   let mockDataSource: jest.Mocked<DataSource>;
@@ -57,8 +58,8 @@ describe('Auth Routes', () => {
       const response = await request(app)
         .post('/api/v1/auth/login')
         .send({
-          username: 'test@example.com',
-          password: 'password123'
+          username: TEST_USERS.USER.email,
+          password: TEST_PASSWORDS.VALID
         });
 
       expect([200, 400, 401, 500]).toContain(response.status);
@@ -107,12 +108,12 @@ describe('Auth Routes', () => {
     });
 
     it('should handle POST /api/v1/auth/login with valid credentials', async () => {
-      const validUser = { id: '1', username: 'admin', role: 'admin' };
+      const validUser = { id: '1', username: TEST_USERS.ADMIN.username, role: TEST_USERS.ADMIN.role };
       (mockRepository.findOne as jest.Mock).mockResolvedValue(validUser);
 
       const response = await request(app)
         .post('/api/v1/auth/login')
-        .send({ username: 'admin', password: 'admin123' });
+        .send({ username: TEST_USERS.ADMIN.username, password: TEST_PASSWORDS.ADMIN });
 
       expect([200, 400, 401, 500]).toContain(response.status);
     });
@@ -120,7 +121,7 @@ describe('Auth Routes', () => {
     it('should reject login without password', async () => {
       const response = await request(app)
         .post('/api/v1/auth/login')
-        .send({ username: 'admin' });
+        .send({ username: TEST_USERS.ADMIN.username });
 
       expect([400, 401]).toContain(response.status);
     });
@@ -128,7 +129,7 @@ describe('Auth Routes', () => {
     it('should reject login without username', async () => {
       const response = await request(app)
         .post('/api/v1/auth/login')
-        .send({ password: 'admin123' });
+        .send({ password: TEST_PASSWORDS.ADMIN });
 
       expect([400, 401]).toContain(response.status);
     });
@@ -159,7 +160,7 @@ describe('Auth Routes', () => {
 
       const response = await request(app)
         .post('/api/v1/auth/login')
-        .send({ username: 'test', password: 'test' });
+        .send({ username: TEST_USERS.USER.username, password: TEST_PASSWORDS.USER });
 
       expect([400, 401, 500]).toContain(response.status);
     });

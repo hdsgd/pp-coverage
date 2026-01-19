@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import { DataSource, Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
@@ -208,7 +208,7 @@ export class BriefingMateriaisCriativosGamService {
       
       if (mapping) {
         const value = data[mapping.field];
-        if (!value || isNaN(Number(value)) || Number(value) <= 0) {
+        if (!value || Number.isNaN(Number(value)) || Number(value) <= 0) {
           errors.push(`Campo "${mapping.name}" é obrigatório e deve ser um número maior que zero quando "${entregaStr}" é selecionado`);
         }
       }
@@ -1053,7 +1053,7 @@ export class BriefingMateriaisCriativosGamService {
         const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
           ? Number(canalItem.max_value)
           : undefined;
-        if (maxValue === undefined || isNaN(maxValue)) {
+        if (maxValue === undefined || Number.isNaN(maxValue)) {
           continue;
         }
 
@@ -1162,7 +1162,7 @@ export class BriefingMateriaisCriativosGamService {
 
     let totalJaUsado = 0;
     schedules.forEach(schedule => {
-      const qtd = parseFloat(schedule.qtd.toString());
+      const qtd = Number.parseFloat(schedule.qtd.toString());
       const tipo = schedule.tipo || 'agendamento';
 
       if (tipo === 'agendamento') {
@@ -1209,9 +1209,9 @@ export class BriefingMateriaisCriativosGamService {
       d = new Date(y, mm - 1, dd);
     } else {
       const parsed = new Date(s);
-      d = isNaN(parsed.getTime()) ? null : parsed;
+      d = Number.isNaN(parsed.getTime()) ? null : parsed;
     }
-    return d && !isNaN(d.getTime()) ? d : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
   }
 
   /** Zera hora/min/seg/ms da data para comparação igual ao tipo date */
@@ -1599,7 +1599,7 @@ export class BriefingMateriaisCriativosGamService {
 
       case MondayColumnType.NUMBER: {
         const num = Number(value);
-        return isNaN(num) ? undefined : num;
+        return Number.isNaN(num) ? undefined : num;
       }
 
       case MondayColumnType.STATUS:
@@ -1677,20 +1677,20 @@ export class BriefingMateriaisCriativosGamService {
     
     // Se já é um objeto com item_ids, retorna como está
     if (typeof value === 'object' && Array.isArray(value.item_ids)) {
-      return { item_ids: value.item_ids.map((id: any) => parseInt(String(id), 10)) };
+      return { item_ids: value.item_ids.map((id: any) => Number.parseInt(String(id), 10)) };
     }
     
     // Se é uma string ou número (ID do item), retorna como array
     if (typeof value === 'string' || typeof value === 'number') {
-      const itemId = parseInt(String(value), 10);
-      if (!isNaN(itemId)) {
+      const itemId = Number.parseInt(String(value), 10);
+      if (!Number.isNaN(itemId)) {
         return { item_ids: [itemId] };
       }
     }
     
     // Se é um array, assume que são IDs de item
     if (Array.isArray(value)) {
-      const itemIds = value.map(id => parseInt(String(id), 10)).filter(id => !isNaN(id));
+      const itemIds = value.map(id => Number.parseInt(String(id), 10)).filter(id => !Number.isNaN(id));
       if (itemIds.length > 0) {
         return { item_ids: itemIds };
       }
@@ -1844,7 +1844,7 @@ export class BriefingMateriaisCriativosGamService {
     if (br) return `${br[3]}${br[2]}${br[1]}`;
     // Tentar Date.parse
     const d = new Date(s);
-    if (!isNaN(d.getTime())) {
+    if (!Number.isNaN(d.getTime())) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
@@ -1907,7 +1907,7 @@ export class BriefingMateriaisCriativosGamService {
     
     // Se é um número (ID/index), usar index
     if (/^\d+$/.test(statusValue)) {
-      return { index: parseInt(statusValue, 10) };
+      return { index: Number.parseInt(statusValue, 10) };
     }
     
     // Se é texto, usar label (Monday tentará resolver)
@@ -1930,7 +1930,7 @@ export class BriefingMateriaisCriativosGamService {
       
       // Se é um número (ID), adicionar aos números
       if (/^\d+$/.test(strVal)) {
-        processedNumbers.push(parseInt(strVal, 10));
+        processedNumbers.push(Number.parseInt(strVal, 10));
       } else {
         // Se é texto, adicionar às strings (labels)
         processedStrings.push(strVal);

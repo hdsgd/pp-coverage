@@ -1,5 +1,6 @@
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
 import { User } from '../../src/entities/User';
+import { TEST_PASSWORDS, TEST_PASSWORD_HASHES } from '../config/testConstants';
 
 describe('ChannelSchedule Entity', () => {
   let schedule: ChannelSchedule;
@@ -369,7 +370,7 @@ describe('ChannelSchedule Entity', () => {
       const user = new User();
       user.id = 'user_123';
       user.username = 'testuser';
-      user.password = 'hashedpassword';
+      user.password = TEST_PASSWORD_HASHES.BCRYPT_HASH;
       user.role = 'admin';
       
       schedule.user = user;
@@ -384,7 +385,7 @@ describe('ChannelSchedule Entity', () => {
       const user = new User();
       user.id = 'user_456';
       user.username = 'johndoe';
-      user.password = 'password123';
+      user.password = TEST_PASSWORDS.VALID;
       user.role = 'user';
       user.is_active = true;
       

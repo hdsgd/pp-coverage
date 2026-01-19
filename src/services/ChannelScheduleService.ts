@@ -1,4 +1,4 @@
-import { Repository, DataSource } from 'typeorm';
+﻿import { Repository, DataSource } from 'typeorm';
 import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { MondayItem } from '../entities/MondayItem';
 import {
@@ -121,7 +121,7 @@ export class ChannelScheduleService {
             throw new Error(`Canal com ID ${id_canal} não encontrado ou inativo`);
         }
 
-        const maxValue = parseFloat(canalItem.max_value?.toString() || '0');
+        const maxValue = Number.parseFloat(canalItem.max_value?.toString() || '0');
 
         // 2. Determinar o limite efetivo para este horário
         const effectiveMaxValue = splitHours.includes(horaFormatted) ? maxValue / 2 : maxValue;
@@ -153,7 +153,7 @@ export class ChannelScheduleService {
         agendamentosExistentes
             .filter(schedule => schedule.id !== excludeScheduleId)
             .forEach(schedule => {
-                const qtd = parseFloat(schedule.qtd.toString());
+                const qtd = Number.parseFloat(schedule.qtd.toString());
                 const tipo = schedule.tipo || 'agendamento';
 
                 // Sempre soma no total absoluto
@@ -477,7 +477,7 @@ export class ChannelScheduleService {
                             id_canal: channel.id_canal || channel.id,
                             data: channel.data || touchpoint.data,
                             hora: channel.hora || '09:00', // Hora padrão se não fornecida
-                            qtd: parseInt(channel.volumeDisparo) || 1,
+                            qtd: Number.parseInt(channel.volumeDisparo) || 1,
                             area_solicitante: formData.conectar_quadros__1 || formData.area_solicitante
                         };
 
