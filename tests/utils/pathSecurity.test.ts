@@ -1,5 +1,6 @@
 import path from 'path';
 import { sanitizeFilename, isPathInDirectory, buildSafePath } from '../../src/utils/pathSecurity';
+import * as pathSecurityModule from '../../src/utils/pathSecurity';
 
 describe('pathSecurity', () => {
   describe('sanitizeFilename', () => {
@@ -293,6 +294,30 @@ describe('pathSecurity', () => {
       
       expect(result).toBe(path.join(baseDir, '.htaccess'));
       expect(isPathInDirectory(result, baseDir)).toBe(true);
+    });
+
+    it('should reject resolved paths that escape the base directory (defense in depth)', () => {
+      const originalResolve = path.resolve;
+      const resolveSpy = jest.spyOn(path, 'resolve');
+      let callIndex = 0;
+
+      resolveSpy.mockImplementation((...segments: string[]): string => {
+        callIndex += 1;
+        if (callIndex === 1) {
+          return '/malicious/outside/file.txt';
+        }
+        if (callIndex === 2) {
+          return '/safe/base';
+        }
+        return originalResolve(...segments);
+      });
+
+      try {
+        expect(() => pathSecurityModule.buildSafePath('/safe/base', 'file.txt'))
+          .toThrow('Acesso negado: caminho fora do diretório permitido');
+      } finally {
+        resolveSpy.mockRestore();
+      }
     });
   });
 

@@ -2,6 +2,7 @@ import { createAuthRoutes } from '../../src/routes/authRoutes';
 import { DataSource, Repository } from 'typeorm';
 import express from 'express';
 import request from 'supertest';
+import { AuthController } from '../../src/controllers/AuthController';
 
 describe('Auth Routes', () => {
   let mockDataSource: jest.Mocked<DataSource>;
@@ -161,6 +162,36 @@ describe('Auth Routes', () => {
         .send({ username: 'test', password: 'test' });
 
       expect([400, 401, 500]).toContain(response.status);
+    });
+  });
+
+  describe('Route hardening', () => {
+    it('should pass authentication failures to next middleware for consistent security handling', async () => {
+      const router = createAuthRoutes(mockDataSource);
+      const loginLayer = router.stack.find((layer: any) => layer.route && layer.route.path === '/login');
+      if (!loginLayer || !loginLayer.route) {
+        throw new Error('Login route not found');
+      }
+
+      const handler = loginLayer.route.stack[0].handle;
+      const loginError = new Error('forced failure');
+      const loginSpy = jest.spyOn(AuthController.prototype, 'login').mockRejectedValue(loginError);
+
+      const req: any = { body: {}, method: 'POST', url: '/login' };
+      const res: any = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis()
+      };
+      const next = jest.fn();
+
+      try {
+        await handler(req, res, next);
+      } finally {
+        loginSpy.mockRestore();
+      }
+
+      expect(next).toHaveBeenCalledWith(loginError);
+      expect(res.status).not.toHaveBeenCalled();
     });
   });
 });
