@@ -1,4 +1,4 @@
-import path from 'path';
+﻿import path from 'path';
 
 /**
  * Sanitiza um nome de arquivo removendo caracteres perigosos e path traversal
@@ -10,8 +10,11 @@ export function sanitizeFilename(filename: string): string {
     throw new Error('Nome de arquivo inválido');
   }
 
-  // Remove qualquer tentativa de path traversal (../, ..\, etc)
-  let sanitized = filename.replace(/\.\.[/\\]/g, '');
+  // Normaliza separadores para /
+  let sanitized = filename.replace(/\\/g, '/');
+  
+  // Remove qualquer tentativa de path traversal
+  sanitized = sanitized.replace(/\.\.\//g, '');
   
   // Extrai apenas o basename (remove qualquer caminho)
   sanitized = path.basename(sanitized);
