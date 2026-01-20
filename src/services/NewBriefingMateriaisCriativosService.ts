@@ -9,6 +9,7 @@ import {
 import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
+import { getValueByPath } from '../utils/objectHelpers';
 
 export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionService {
   protected readonly mondayItemRepository: Repository<MondayItem>;
@@ -280,7 +281,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
           continue; // Pular campos excluídos
         }
 
-        let value = this.getValueByPath(formData, columnMapping.form_field_path);
+        let value = getValueByPath(formData, columnMapping.form_field_path);
 
         // Aplicar transformação se definida
         if (columnMapping.transform && value !== undefined) {

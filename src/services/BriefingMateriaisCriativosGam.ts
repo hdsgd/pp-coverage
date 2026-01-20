@@ -15,6 +15,7 @@ import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
+import { getValueByPath } from '../utils/objectHelpers';
 
 export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
@@ -1608,7 +1609,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
    */
   protected async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
     try {
-      const fileName = this.getValueByPath(formData, 'data.enviar_arquivo__1');
+      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
 
       if (!fileName || typeof fileName !== 'string') {
         return;

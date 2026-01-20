@@ -12,6 +12,7 @@ import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
+import { getValueByPath } from '../utils/objectHelpers';
 import { ChannelScheduleService } from './ChannelScheduleService';
 
 export class NewCRMService extends BaseFormSubmissionService {
@@ -1135,7 +1136,7 @@ export class NewCRMService extends BaseFormSubmissionService {
           continue; // Pular campos excluídos
         }
 
-        let value = this.getValueByPath(formData, columnMapping.form_field_path);
+        let value = getValueByPath(formData, columnMapping.form_field_path);
 
         // Se o mapeamento for para data__1 e temos uma data do subitem mais próximo, usar ela
         if (columnMapping.monday_column_id === 'data__1' && closestSubitemDate) {

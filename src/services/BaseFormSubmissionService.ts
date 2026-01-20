@@ -99,7 +99,7 @@ export abstract class BaseFormSubmissionService {
    */
   protected extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
     if (mapping.item_name_field) {
-      const name = this.getValueByPath(formData, mapping.item_name_field);
+      const name = getValueByPath(formData, mapping.item_name_field);
       if (name && typeof name === 'string') {
         return name;
       }
@@ -491,7 +491,7 @@ export abstract class BaseFormSubmissionService {
    */
   protected async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
     try {
-      const fileName = this.getValueByPath(formData, 'data.enviar_arquivo__1');
+      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
 
       if (!fileName || typeof fileName !== 'string') {
         return;

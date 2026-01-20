@@ -15,6 +15,7 @@ import type { SubitemData } from '../dto/MondayFormMappingDto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
+import { getValueByPath } from '../utils/objectHelpers';
 
 export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
@@ -1571,7 +1572,7 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
    */
   protected async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
     try {
-      const fileName = this.getValueByPath(formData, 'data.enviar_arquivo__1');
+      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
 
       if (!fileName || typeof fileName !== 'string') {
         return;
