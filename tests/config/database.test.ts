@@ -121,7 +121,7 @@ describe('Database Configuration', () => {
     });
 
     it('should parse port as integer', () => {
-      const port = parseInt(process.env.DB_PORT_SQL || '3306');
+      const port = Number.parseInt(process.env.DB_PORT_SQL || '3306');
       expect(typeof port).toBe('number');
       expect(port).toBeGreaterThan(0);
     });

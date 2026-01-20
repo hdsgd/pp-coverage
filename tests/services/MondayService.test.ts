@@ -2780,7 +2780,7 @@ describe('MondayService', () => {
             boards: [{
               items_page: {
                 cursor: 'has_more',
-                items: Array(10).fill(null).map((_, i) => ({ id: `${i}`, name: `Campaign ${i}` })),
+                items: new Array(10).fill(null).map((_, i) => ({ id: `${i}`, name: `Campaign ${i}` })),
               },
             }],
           },
@@ -2899,7 +2899,7 @@ describe('MondayService', () => {
       const mockBoard = { id: '1', board_id: '123', query_fields: ['id', 'name'] };
       mockMondayBoardRepository.findOne.mockResolvedValue(mockBoard as any);
 
-      const largeItemSet = Array(500).fill(null).map((_, i) => ({
+      const largeItemSet = new Array(500).fill(null).map((_, i) => ({
         id: `${i}`,
         name: `Item ${i}`,
         column_values: [],
@@ -3052,7 +3052,7 @@ describe('MondayService', () => {
     });
 
     it('should handle syncBoardData with multiple boards simultaneously', async () => {
-      const mockBoards = Array(5).fill(null).map((_, i) => ({
+      const mockBoards = new Array(5).fill(null).map((_, i) => ({
         id: `${i}`,
         board_id: `board_${i}`,
         query_fields: ['id', 'name'],
@@ -3712,7 +3712,7 @@ describe('MondayService', () => {
             boards: [{
               items_page: {
                 cursor: 'next',
-                items: Array(10).fill(null).map((_, i) => ({ id: `${i}`, name: `C${i}` })),
+                items: new Array(10).fill(null).map((_, i) => ({ id: `${i}`, name: `C${i}` })),
               },
             }],
           },
