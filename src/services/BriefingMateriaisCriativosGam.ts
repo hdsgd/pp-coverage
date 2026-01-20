@@ -1504,7 +1504,7 @@ export class BriefingMateriaisCriativosGamService {
 
   /**
    * Insere dados dos subitems na tabela channel_schedules
-   * Insere dados dos subitems na tabela channel_schedules
+
    * @param subitems Array de subitems com dados de canal/data/hora
    * @param formData Dados completos do formulário para extrair area_solicitante e user_id
    */

@@ -1,4 +1,4 @@
-﻿name: CI - Tests and SonarCloud
+name: CI - Tests and SonarCloud
 
 on:
   push:
@@ -46,6 +46,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_PATH: ${{ env.NODE_PATH }}
+          PATH: ${{ env.PATH }}
         with:
           args: >-
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
@@ -58,5 +60,3 @@ jobs:
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.typescript.tsconfigPath=tsconfig.json
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-            -Dsonar.qualitygate.wait=true
