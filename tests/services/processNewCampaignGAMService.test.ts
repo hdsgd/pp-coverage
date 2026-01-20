@@ -6,6 +6,7 @@ import { Subscriber } from '../../src/entities/Subscriber';
 import { MondayBoard } from '../../src/entities/MondayBoard';
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
 import { MondayColumnType, FormSubmissionData, MondayFormMapping } from '../../src/dto/MondayFormMappingDto';
+import { convertToISODate, toYYYYMMDD, convertDateFormat } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/services/MondayService');
 jest.mock('../../src/config/database');
@@ -82,38 +83,38 @@ describe('NewCampaignGAMService', () => {
 
   describe('toYYYYMMDD', () => {
     it('should convert YYYY-MM-DD to YYYYMMDD', () => {
-      const result = (service as any).toYYYYMMDD('2024-01-15');
+      const result = toYYYYMMDD('2024-01-15');
       expect(result).toBe('20240115');
     });
 
     it('should convert DD/MM/YYYY to YYYYMMDD', () => {
-      const result = (service as any).toYYYYMMDD('15/01/2024');
+      const result = toYYYYMMDD('15/01/2024');
       expect(result).toBe('20240115');
     });
 
     it('should keep YYYYMMDD as is', () => {
-      const result = (service as any).toYYYYMMDD('20240115');
+      const result = toYYYYMMDD('20240115');
       expect(result).toBe('20240115');
     });
 
     it('should handle Date object', () => {
       const date = new Date('2024-01-15');
-      const result = (service as any).toYYYYMMDD(date);
+      const result = toYYYYMMDD(date);
       expect(result).toMatch(/^\d{8}$/);
     });
 
     it('should return empty string for invalid input', () => {
-      const result = (service as any).toYYYYMMDD('invalid');
+      const result = toYYYYMMDD('invalid');
       expect(result).toBe('');
     });
 
     it('should return empty string for null', () => {
-      const result = (service as any).toYYYYMMDD(null);
+      const result = toYYYYMMDD(null);
       expect(result).toBe('');
     });
 
     it('should return empty string for undefined', () => {
-      const result = (service as any).toYYYYMMDD(undefined);
+      const result = toYYYYMMDD(undefined);
       expect(result).toBe('');
     });
   });
@@ -564,17 +565,17 @@ describe('NewCampaignGAMService', () => {
 
   describe('convertDateFormat', () => {
     it('should convert ISO date to Brazilian format', () => {
-      const result = (service as any).convertDateFormat('2024-05-10');
+      const result = convertDateFormat('2024-05-10');
       expect(result).toBe('10/05/2024');
     });
 
     it('should keep Brazilian format untouched', () => {
-      const result = (service as any).convertDateFormat('31/12/2024');
+      const result = convertDateFormat('31/12/2024');
       expect(result).toBe('31/12/2024');
     });
 
     it('should return original value when format is not recognized', () => {
-      const result = (service as any).convertDateFormat('10.05.2024');
+      const result = convertDateFormat('10.05.2024');
       expect(result).toBe('10.05.2024');
     });
   });
@@ -591,12 +592,12 @@ describe('NewCampaignGAMService', () => {
 
   describe('convertToISODate', () => {
     it('should convert DD/MM/YYYY to ISO string', () => {
-      const result = (service as any).convertToISODate('15/08/2025');
+      const result = convertToISODate('15/08/2025');
       expect(result).toBe('2025-08-15');
     });
 
     it('should keep ISO string as is', () => {
-      const result = (service as any).convertToISODate('2025-08-15');
+      const result = convertToISODate('2025-08-15');
       expect(result).toBe('2025-08-15');
     });
   });
@@ -2252,7 +2253,7 @@ describe('NewCampaignGAMService', () => {
 
 
     it('should handle toYYYYMMDD with ISO datetime string', () => {
-      const result = (service as any).toYYYYMMDD('2024-01-15T10:30:00Z');
+      const result = toYYYYMMDD('2024-01-15T10:30:00Z');
       expect(result).toBe('20240115');
     });
 
