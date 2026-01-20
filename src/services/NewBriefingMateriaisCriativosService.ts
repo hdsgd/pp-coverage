@@ -10,6 +10,7 @@ import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
+import { toYYYYMMDD } from '../utils/dateFormatters';
 
 export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionService {
   protected readonly mondayItemRepository: Repository<MondayItem>;
@@ -335,7 +336,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
     
     // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || this.toYYYYMMDD(d["data__1"]);
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
     
     // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
     const idPart = itemId ? `id-${itemId}` : "";
@@ -396,32 +397,6 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
       console.warn('Falha ao obter code por name em monday_items:', e);
       return undefined;
     }
-  }
-
-  /**
-   * Converte uma data em string para formato YYYYMMDD.
-   * Aceita entradas: YYYY-MM-DD, DD/MM/YYYY, YYYYMMDD. Retorna vazio se não conseguir parsear.
-   */
-  private toYYYYMMDD(input: any): string {
-    if (!input) return "";
-    const s = String(input).trim();
-    // YYYYMMDD
-    if (/^\d{8}$/.test(s)) return s;
-    // YYYY-MM-DD
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-    if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
-    // DD/MM/YYYY
-    const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-    if (br) return `${br[3]}${br[2]}${br[1]}`;
-    // Tentar Date.parse
-    const d = new Date(s);
-    if (!Number.isNaN(d.getTime())) {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}${mm}${dd}`;
-    }
-    return "";
   }
 
 }

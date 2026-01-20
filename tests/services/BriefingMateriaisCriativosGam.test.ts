@@ -6,7 +6,7 @@ import { MondayItem } from '../../src/entities/MondayItem';
 import { MondayBoard } from '../../src/entities/MondayBoard';
 import { Subscriber } from '../../src/entities/Subscriber';
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
-import { convertDateFormat } from '../../src/utils/dateFormatters';
+import { convertDateFormat, toYYYYMMDD } from '../../src/utils/dateFormatters';
 import fs from 'fs';
 
 // Mock modules
@@ -1247,17 +1247,17 @@ describe('BriefingMateriaisCriativosGamService', () => {
   describe('toYYYYMMDD', () => {
     it('should format Date object to YYYYMMDD', () => {
       const date = new Date('2024-12-25');
-      const result = (service as any).toYYYYMMDD(date);
+      const result = toYYYYMMDD(date);
       expect(result).toMatch(/^\d{8}$/);
     });
 
     it('should format date string to YYYYMMDD', () => {
-      const result = (service as any).toYYYYMMDD('25/12/2024');
+      const result = toYYYYMMDD('25/12/2024');
       expect(result).toBe('20241225');
     });
 
     it('should return empty string for invalid input', () => {
-      const result = (service as any).toYYYYMMDD('invalid');
+      const result = toYYYYMMDD('invalid');
       expect(result).toBe('');
     });
   });
@@ -2783,32 +2783,32 @@ describe('BriefingMateriaisCriativosGamService', () => {
 
   describe('toYYYYMMDD - additional formats', () => {
     it('should handle YYYYMMDD input', () => {
-      const result = (service as any).toYYYYMMDD('20241231');
+      const result = toYYYYMMDD('20241231');
       expect(result).toBe('20241231');
     });
 
     it('should handle ISO format YYYY-MM-DD', () => {
-      const result = (service as any).toYYYYMMDD('2024-12-31');
+      const result = toYYYYMMDD('2024-12-31');
       expect(result).toBe('20241231');
     });
 
     it('should handle BR format DD/MM/YYYY', () => {
-      const result = (service as any).toYYYYMMDD('31/12/2024');
+      const result = toYYYYMMDD('31/12/2024');
       expect(result).toBe('20241231');
     });
 
     it('should try Date.parse for other formats', () => {
-      const result = (service as any).toYYYYMMDD('2024-12-31T10:30:00Z');
+      const result = toYYYYMMDD('2024-12-31T10:30:00Z');
       expect(result).toMatch(/^\d{8}$/);
     });
 
     it('should return empty string for null', () => {
-      const result = (service as any).toYYYYMMDD(null);
+      const result = toYYYYMMDD(null);
       expect(result).toBe('');
     });
 
     it('should return empty string for undefined', () => {
-      const result = (service as any).toYYYYMMDD(undefined);
+      const result = toYYYYMMDD(undefined);
       expect(result).toBe('');
     });
   });

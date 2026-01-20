@@ -16,7 +16,7 @@ import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
-import { convertDateFormat } from '../utils/dateFormatters';
+import { convertDateFormat, toYYYYMMDD } from '../utils/dateFormatters';
 
 export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
@@ -411,7 +411,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
     
     // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || this.toYYYYMMDD(d["data__1"]);
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
     
     const idPart = itemId ? `id-${itemId}` : "";
     
@@ -995,7 +995,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
           continue; // Pular campos excluídos
         }
 
-        let value = this.getValueByPath(formData, columnMapping.form_field_path);
+        let value = getValueByPath(formData, columnMapping.form_field_path);
 
         // Se o mapeamento for para data__1 e temos uma data do subitem mais próximo, usar ela
         if (columnMapping.monday_column_id === 'data__1' && closestSubitemDate) {
@@ -1092,7 +1092,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
         }
         // Popular text_mkr3n64h (YYYYMMDD) somente se ainda não existir
         if (columnValues['text_mkr3n64h'] === undefined) {
-          const yyyymmdd = this.toYYYYMMDD(dateStr);
+          const yyyymmdd = toYYYYMMDD(dateStr);
           if (yyyymmdd) {
             columnValues['text_mkr3n64h'] = yyyymmdd;
           }
@@ -1397,7 +1397,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
 
     // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || this.toYYYYMMDD(d["data__1"]);
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
 
     // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
     const idPart = itemId ? `id-${itemId}` : "";
@@ -1467,32 +1467,6 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
 
     return parts.join("-");
   } 
-
-  /**
-   * Converte uma data em string para formato YYYYMMDD.
-   * Aceita entradas: YYYY-MM-DD, DD/MM/YYYY, YYYYMMDD. Retorna vazio se não conseguir parsear.
-   */
-  private toYYYYMMDD(input: any): string {
-    if (!input) return "";
-    const s = String(input).trim();
-    // YYYYMMDD
-    if (/^\d{8}$/.test(s)) return s;
-    // YYYY-MM-DD
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-    if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
-    // DD/MM/YYYY
-    const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-    if (br) return `${br[3]}${br[2]}${br[1]}`;
-    // Tentar Date.parse
-    const d = new Date(s);
-    if (!Number.isNaN(d.getTime())) {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}${mm}${dd}`;
-    }
-    return "";
-  }
 
   /**
    * Cria um item na Monday.com usando GraphQL mutation

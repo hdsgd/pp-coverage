@@ -5,6 +5,7 @@ import { MondayItem } from '../../src/entities/MondayItem';
 import { Subscriber } from '../../src/entities/Subscriber';
 import { MondayBoard } from '../../src/entities/MondayBoard';
 import { MondayColumnType } from '../../src/dto/MondayFormMappingDto';
+import { toYYYYMMDD } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/services/MondayService');
 jest.mock('../../src/config/database');
@@ -769,38 +770,38 @@ describe('NewBriefingMateriaisCriativosService', () => {
 
   describe('toYYYYMMDD', () => {
     it('should convert YYYY-MM-DD to YYYYMMDD', () => {
-      const result = (service as any).toYYYYMMDD('2024-01-15');
+      const result = toYYYYMMDD('2024-01-15');
       expect(result).toBe('20240115');
     });
 
     it('should convert DD/MM/YYYY to YYYYMMDD', () => {
-      const result = (service as any).toYYYYMMDD('15/01/2024');
+      const result = toYYYYMMDD('15/01/2024');
       expect(result).toBe('20240115');
     });
 
     it('should keep YYYYMMDD as is', () => {
-      const result = (service as any).toYYYYMMDD('20240115');
+      const result = toYYYYMMDD('20240115');
       expect(result).toBe('20240115');
     });
 
     it('should handle Date object', () => {
       const date = new Date('2024-01-15T12:00:00Z');
-      const result = (service as any).toYYYYMMDD(date);
+      const result = toYYYYMMDD(date);
       expect(result).toBe('20240115');
     });
 
     it('should return empty string for invalid input', () => {
-      const result = (service as any).toYYYYMMDD('invalid-date');
+      const result = toYYYYMMDD('invalid-date');
       expect(result).toBe('');
     });
 
     it('should return empty string for null', () => {
-      const result = (service as any).toYYYYMMDD(null);
+      const result = toYYYYMMDD(null);
       expect(result).toBe('');
     });
 
     it('should return empty string for undefined', () => {
-      const result = (service as any).toYYYYMMDD(undefined);
+      const result = toYYYYMMDD(undefined);
       expect(result).toBe('');
     });
   });

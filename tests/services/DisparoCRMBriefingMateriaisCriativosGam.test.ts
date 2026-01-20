@@ -9,7 +9,7 @@ import { AppDataSource } from '../../src/config/database';
 import type { FormSubmissionData } from '../../src/dto/MondayFormMappingDto';
 import { MondayColumnType, DISPARO_CRM_BRIEFING_MATERIAIS_CRIATIVOS_GAM_FORM_MAPPING } from '../../src/dto/MondayFormMappingDto';
 import fs from 'fs';
-import { convertDateFormat } from '../../src/utils/dateFormatters';
+import { convertDateFormat, toYYYYMMDD } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/services/MondayService');
 jest.mock('../../src/services/ChannelScheduleService');
@@ -780,18 +780,18 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
 
   describe('toYYYYMMDD', () => {
     it('should convert date string to YYYY-MM-DD', () => {
-      const result = (service as any).toYYYYMMDD('2024-01-15');
+      const result = toYYYYMMDD('2024-01-15');
       expect(result).toBe('20240115');
     });
 
     it('should handle Date object', () => {
       const date = new Date('2024-01-15');
-      const result = (service as any).toYYYYMMDD(date);
+      const result = toYYYYMMDD(date);
       expect(result).toMatch(/^2024011[45]$/);
     });
 
     it('should return empty string for invalid input', () => {
-      const result = (service as any).toYYYYMMDD(null);
+      const result = toYYYYMMDD(null);
       expect(result).toBe('');
     });
   });
@@ -3458,10 +3458,10 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
 
     it('should handle toYYYYMMDD conversion', () => {
       const date = new Date('2024-01-15T10:30:00');
-      const result = (service as any).toYYYYMMDD(date);
+      const result = toYYYYMMDD(date);
       expect(result).toBe('20240115');
 
-      const invalidResult = (service as any).toYYYYMMDD(null);
+      const invalidResult = toYYYYMMDD(null);
       expect(invalidResult).toBe('');
     });
 

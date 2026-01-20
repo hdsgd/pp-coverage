@@ -14,7 +14,7 @@ import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
 import { ChannelScheduleService } from './ChannelScheduleService';
-import { convertDateFormat } from '../utils/dateFormatters';
+import { convertDateFormat, toYYYYMMDD } from '../utils/dateFormatters';
 
 export class NewCRMService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
@@ -371,7 +371,7 @@ export class NewCRMService extends BaseFormSubmissionService {
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
     
     // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || this.toYYYYMMDD(d["data__1"]);
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
     
     const idPart = itemId ? `id-${itemId}` : "";
     const lookupFields = [
@@ -796,19 +796,6 @@ export class NewCRMService extends BaseFormSubmissionService {
   }
 
   /** Normaliza valores em array de strings */
-  protected normalizeToStringArray(v: any): string[] {
-    if (v === null || v === undefined) return [];
-    if (Array.isArray(v)) return v.map((x) => String(x));
-    if (typeof v === 'string') return [v];
-    if (typeof v === 'object') {
-      const obj: any = v;
-      // Caso tenha alguma estrutura inesperada, tentar extrair rótulos conhecidos
-      if (Array.isArray(obj.labels)) return obj.labels.map((x: any) => String(x));
-      if (Array.isArray(obj.ids)) return obj.ids.map((x: any) => String(x));
-    }
-    return [String(v)];
-  }
-
   /**
    * Ajusta os objetos de __SUBITEMS__ respeitando a capacidade disponível por canal/data/hora.
    * - Para cada subitem, calcula available_time = max_value (monday_items) - soma(qtd) (channel_schedules)
@@ -1213,7 +1200,7 @@ export class NewCRMService extends BaseFormSubmissionService {
         }
         // Popular text_mkr3n64h (YYYYMMDD) somente se ainda não existir
         if (columnValues['text_mkr3n64h'] === undefined) {
-          const yyyymmdd = this.toYYYYMMDD(dateStr);
+          const yyyymmdd = toYYYYMMDD(dateStr);
           if (yyyymmdd) {
             columnValues['text_mkr3n64h'] = yyyymmdd;
           }
@@ -1522,7 +1509,7 @@ export class NewCRMService extends BaseFormSubmissionService {
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
     
     // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || this.toYYYYMMDD(d["data__1"]);
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
     
     // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
     const idPart = itemId ? `id-${itemId}` : "";
@@ -1588,32 +1575,6 @@ export class NewCRMService extends BaseFormSubmissionService {
 
     return parts.join("-");
   } 
-
-  /**
-   * Converte uma data em string para formato YYYYMMDD.
-   * Aceita entradas: YYYY-MM-DD, DD/MM/YYYY, YYYYMMDD. Retorna vazio se não conseguir parsear.
-   */
-  public toYYYYMMDD(input: any): string {
-    if (!input) return "";
-    const s = String(input).trim();
-    // YYYYMMDD
-    if (/^\d{8}$/.test(s)) return s;
-    // YYYY-MM-DD
-    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-    if (iso) return `${iso[1]}${iso[2]}${iso[3]}`;
-    // DD/MM/YYYY
-    const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
-    if (br) return `${br[3]}${br[2]}${br[1]}`;
-    // Tentar Date.parse
-    const d = new Date(s);
-    if (!Number.isNaN(d.getTime())) {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}${mm}${dd}`;
-    }
-    return "";
-  }
 
   /**
    * Cria um item na Monday.com usando GraphQL mutation (sobrescreve o método da base para incluir lógica específica do CRM)
