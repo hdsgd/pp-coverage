@@ -1018,7 +1018,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateGrowthBUMarcaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateGrowthBUMarcaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1027,7 +1028,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       const data = {};
       const errors: string[] = [];
 
-      (service as any).validateGrowthBUMarcaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateGrowthBUMarcaFields(data, errors);
 
       expect(errors.length).toBeGreaterThan(5);
       expect(errors[0]).toContain('Área Solicitante');
@@ -1052,7 +1054,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateConteudoRedesSociaisFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateConteudoRedesSociaisFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1061,7 +1064,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       const data = { text_mksn5est: 'Hero' };
       const errors: string[] = [];
 
-      (service as any).validateConteudoRedesSociaisFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateConteudoRedesSociaisFields(data, errors);
 
       expect(errors.length).toBeGreaterThan(5);
       expect(errors[0]).toContain('Tensão/Oportunidade');
@@ -1077,7 +1081,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateValidacaoFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateValidacaoFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1086,7 +1091,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       const data = {};
       const errors: string[] = [];
 
-      (service as any).validateValidacaoFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateValidacaoFields(data, errors);
 
       expect(errors.length).toBeGreaterThan(0);
     });
@@ -1100,7 +1106,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1111,7 +1118,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0]).toContain('Push');
@@ -1124,7 +1132,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1136,7 +1145,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1149,7 +1159,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });
@@ -1162,7 +1173,8 @@ describe('BriefingMateriaisCriativosGamService', () => {
       };
       const errors: string[] = [];
 
-      (service as any).validateTipoEntregaFields(data, errors);
+      const { BriefingValidator } = require('../../src/utils/briefingValidator');
+      BriefingValidator.validateTipoEntregaFields(data, errors);
 
       expect(errors).toHaveLength(0);
     });

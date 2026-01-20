@@ -114,7 +114,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       it('adds errors when mapped deliveries lack positive numeric quantities', () => {
         const errors: string[] = [];
 
-        (service as any).validateTipoEntregaFields(
+        const { BriefingValidator } = require('../../src/utils/briefingValidator');
+        BriefingValidator.validateTipoEntregaFields(
           {
             sele__o_m_ltipla18__1: ['Banner | Home', 'Entrega desconhecida'],
             n_meros077__1: '0',
@@ -129,7 +130,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       it('ignores unknown deliveries and accepts positive numeric values', () => {
         const errors: string[] = [];
 
-        (service as any).validateTipoEntregaFields(
+        const { BriefingValidator } = require('../../src/utils/briefingValidator');
+        BriefingValidator.validateTipoEntregaFields(
           {
             sele__o_m_ltipla18__1: ['SMS', 'Banner | Store'],
             n_meros43__1: 3,
@@ -146,7 +148,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       it('collects missing field errors for validation briefings', () => {
         const errors: string[] = [];
 
-        (service as any).validateValidacaoFields({}, errors);
+        const { BriefingValidator } = require('../../src/utils/briefingValidator');
+        BriefingValidator.validateValidacaoFields({}, errors);
 
         expect(errors).toHaveLength(3);
         expect(errors[0]).toMatch(/Contexto da Comunicação/);
@@ -157,7 +160,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       it('passes when all validation fields are provided', () => {
         const errors: string[] = [];
 
-        (service as any).validateValidacaoFields(
+        const { BriefingValidator } = require('../../src/utils/briefingValidator');
+        BriefingValidator.validateValidacaoFields(
           {
             long_text_mksehp7a: 'Contexto',
             sele__o_m_ltipla18__1: ['Push'],

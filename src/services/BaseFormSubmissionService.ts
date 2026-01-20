@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { FormSubmissionData, MondayColumnType, MondayFormMapping } from '../dto/MondayFormMappingDto';
@@ -112,7 +112,7 @@ export abstract class BaseFormSubmissionService {
    */
   protected getValueByPath(obj: any, path: string): any {
     return path.split('.').reduce((current: any, key: string) => {
-      return current && current[key] !== undefined ? current[key] : undefined;
+      return current?.[key];
     }, obj);
   }
 
@@ -183,7 +183,7 @@ export abstract class BaseFormSubmissionService {
     for (const [key, rawVal] of Object.entries(connectColumnsRaw)) {
       // Caso já venha como { item_ids: [...] }, respeitar e seguir
       if (rawVal && typeof rawVal === 'object' && Array.isArray((rawVal as any).item_ids)) {
-        const ids = (rawVal as any).item_ids.map((v: any) => String(v)).filter((s: string) => s.trim().length > 0);
+        const ids = (rawVal as any).item_ids.map(String).filter((s: string) => s.trim().length > 0);
         if (ids.length > 0) {
           out[key] = { item_ids: ids };
           continue;
@@ -257,13 +257,13 @@ export abstract class BaseFormSubmissionService {
    */
   protected normalizeToStringArray(v: any): string[] {
     if (v === null || v === undefined) return [];
-    if (Array.isArray(v)) return v.map((x) => String(x));
+    if (Array.isArray(v)) return v.map(String);
     if (typeof v === 'string') return [v];
     if (typeof v === 'object') {
       const obj: any = v;
       // Caso tenha alguma estrutura inesperada, tentar extrair rótulos conhecidos
-      if (Array.isArray(obj.labels)) return obj.labels.map((x: any) => String(x));
-      if (Array.isArray(obj.ids)) return obj.ids.map((x: any) => String(x));
+      if (Array.isArray(obj.labels)) return obj.labels.map(String);
+      if (Array.isArray(obj.ids)) return obj.ids.map(String);
     }
     return [String(v)];
   }
