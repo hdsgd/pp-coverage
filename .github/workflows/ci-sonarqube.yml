@@ -41,7 +41,7 @@ jobs:
           path: coverage
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
+        uses: SonarSource/sonarqube-scan-action@a31c9398b3d5ee80e8c6de3c3c3a2e2b5c8d4c9e
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io

@@ -97,9 +97,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       expect(AppDataSource.getRepository).toHaveBeenCalledWith(ChannelSchedule);
     });
 
-    it('should initialize with channelScheduleService when dataSource is provided', () => {
-      const mockDataSource = {} as any;
-      const serviceWithDs = new DisparoCRMBriefingMateriaisCriativosService(mockDataSource);
+    it('should initialize service successfully', () => {
+      const serviceWithDs = new DisparoCRMBriefingMateriaisCriativosService();
       
       expect(serviceWithDs).toBeDefined();
     });

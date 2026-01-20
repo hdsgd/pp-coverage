@@ -30,8 +30,8 @@ export class MondayFormSubmissionController {
     this.newCRMService = new NewCRMService(AppDataSource);
     this.newCampaignGAMService = new NewCampaignGAMService(AppDataSource);
     this.newBriefingMateriaisCriativosService = new NewBriefingMateriaisCriativosService();
-    this.disparoCRMBriefingService = new DisparoCRMBriefingMateriaisCriativosService(AppDataSource);
-    this.briefingGAMService = new BriefingMateriaisCriativosGamService(AppDataSource);
+    this.disparoCRMBriefingService = new DisparoCRMBriefingMateriaisCriativosService();
+    this.briefingGAMService = new BriefingMateriaisCriativosGamService();
     this.disparoCRMBriefingGAMService = new DisparoCRMBriefingMateriaisCriativosGamService(AppDataSource);
   }
 

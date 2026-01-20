@@ -38,7 +38,7 @@ describe('SubscriberDto', () => {
       dto.board_id = 'board_email';
 
       expect(dto.email).toContain('@');
-      expect(dto.email).toMatch(/@.*\./);
+      expect(dto.email).toMatch(/@[^@]*\./);
     });
 
     it('should support numeric IDs as strings', () => {

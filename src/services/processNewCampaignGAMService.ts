@@ -956,7 +956,7 @@ export class NewCampaignGAMService {
           reservedQty = Array.isArray(result)
             ? result.reduce((acc: number, current: any) => {
                 const quantity = Number(current?.quantity ?? current?.qtd ?? 0);
-                if (!isFinite(quantity)) {
+                if (!Number.isFinite(quantity)) {
                   return acc;
                 }
                 const tipo = String(current?.tipo ?? 'agendamento');

@@ -43,7 +43,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=deps /app/package*.json ./
 COPY tsconfig.json ./
-COPY ormconfig.* ./
+COPY ormconfig.js ormconfig.ts ./
 COPY src ./src
 
 RUN mkdir -p MondayFiles data/form-submissions data/pre-data && \

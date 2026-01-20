@@ -105,11 +105,10 @@ describe('BriefingMateriaisCriativosGamService', () => {
       expect((newService as any).channelScheduleRepository).toBeDefined();
     });
 
-    it('should initialize with channelScheduleService when dataSource is provided', () => {
-      const mockDataSource = {} as any;
-      const newService = new BriefingMateriaisCriativosGamService(mockDataSource);
+    it('should initialize service successfully', () => {
+      const newService = new BriefingMateriaisCriativosGamService();
 
-      expect((newService as any).channelScheduleService).toBeDefined();
+      expect(newService).toBeDefined();
     });
 
     it('should have correlation arrays defined', () => {
@@ -1795,12 +1794,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -1840,12 +1834,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -1876,12 +1865,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -1913,12 +1897,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -1946,12 +1925,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -1979,12 +1953,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
         create: jest.fn().mockResolvedValue({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -2015,12 +1984,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
           .mockResolvedValueOnce({}),
         findByChannelAndDate: jest.fn()
       };
-
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const serviceWithChannel = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const serviceWithChannel = new BriefingMateriaisCriativosGamService();
       (serviceWithChannel as any).channelScheduleService = mockChannelService;
 
       const formData: FormSubmissionData = {
@@ -2904,11 +2868,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
 
   describe('processMarketingBoardSend', () => {
     it('should create marketing board item and return ID', async () => {
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const testService = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const testService = new BriefingMateriaisCriativosGamService();
       (testService as any).mondayItemRepository = mockMondayItemRepository;
       (testService as any).mondayBoardRepository = mockMondayBoardRepository;
       (testService as any).subscriberRepository = mockSubscriberRepository;
@@ -2937,11 +2897,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
     });
 
     it('should resolve area solicitante from ID to name', async () => {
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const testService = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const testService = new BriefingMateriaisCriativosGamService();
       (testService as any).mondayItemRepository = mockMondayItemRepository;
       (testService as any).mondayBoardRepository = mockMondayBoardRepository;
       (testService as any).subscriberRepository = mockSubscriberRepository;
@@ -2970,11 +2926,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
     });
 
     it('should handle error when resolving area solicitante', async () => {
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const testService = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const testService = new BriefingMateriaisCriativosGamService();
       (testService as any).mondayItemRepository = mockMondayItemRepository;
       (testService as any).mondayBoardRepository = mockMondayBoardRepository;
       (testService as any).subscriberRepository = mockSubscriberRepository;
@@ -3002,11 +2954,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
     });
 
     it('should handle error when updating connect columns', async () => {
-      const mockDataSource = {
-        getRepository: jest.fn()
-      };
-
-      const testService = new BriefingMateriaisCriativosGamService(mockDataSource as any);
+      const testService = new BriefingMateriaisCriativosGamService();
       (testService as any).mondayItemRepository = mockMondayItemRepository;
       (testService as any).mondayBoardRepository = mockMondayBoardRepository;
       (testService as any).subscriberRepository = mockSubscriberRepository;

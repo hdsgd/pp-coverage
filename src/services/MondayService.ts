@@ -5,8 +5,8 @@ import { MondayBoard } from "../entities/MondayBoard";
 import { MondayItem } from "../entities/MondayItem";
 import { ChannelSchedule } from "../entities/ChannelSchedule";
 import { Subscriber } from "../entities/Subscriber";
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import FormData from "form-data";
 import { FormSubmissionData, SubitemData } from '../dto/MondayFormMappingDto';
 
@@ -3009,28 +3009,28 @@ export class MondayService {
       if (campaignData.tipoCliente) {
         taxonomyUpdates['text_mkrrg2hp'] = campaignData.tipoCliente;
         const clienteCode = await this.getCodeByItemName(campaignData.tipoCliente);
-        taxonomyUpdates['text_mkrrna7e'] = clienteCode || 'NaN';
+        taxonomyUpdates['text_mkrrna7e'] = clienteCode || String(Number.NaN);
       }
 
       // Campanha (ReferÃªncia + CÃ³digo)
       if (campaignData.tipoCampanha) {
         taxonomyUpdates['text_mkrra7df'] = campaignData.tipoCampanha;
         const campanhaCode = await this.getCodeByItemName(campaignData.tipoCampanha);
-        taxonomyUpdates['text_mkrrcnpx'] = campanhaCode || 'NaN';
+        taxonomyUpdates['text_mkrrcnpx'] = campanhaCode || String(Number.NaN);
       }
 
       // Disparo (ReferÃªncia + CÃ³digo)
       if (campaignData.tipoDisparo) {
         taxonomyUpdates['text_mkrr9edr'] = campaignData.tipoDisparo;
         const disparoCode = await this.getCodeByItemName(campaignData.tipoDisparo);
-        taxonomyUpdates['text_mkrrmjcy'] = disparoCode || 'NaN';
+        taxonomyUpdates['text_mkrrmjcy'] = disparoCode || String(Number.NaN);
       }
 
       // MecÃ¢nica (ReferÃªncia + CÃ³digo)
       if (campaignData.mecanica) {
         taxonomyUpdates['text_mkrrxf48'] = campaignData.mecanica;
         const mecanicaCode = await this.getCodeByItemName(campaignData.mecanica);
-        taxonomyUpdates['text_mkrrxpjd'] = mecanicaCode || 'NaN';
+        taxonomyUpdates['text_mkrrxpjd'] = mecanicaCode || String(Number.NaN);
       }
 
       // Ãrea Solicitante (ReferÃªncia + CÃ³digo)
@@ -3040,13 +3040,13 @@ export class MondayService {
           const item = await this.mondayItemRepository.findOne({ where: { item_id: areaSolicitanteValue } });
           if (item) {
             areaSolicitanteValue = item.name || areaSolicitanteValue;
-            taxonomyUpdates['text_mkrrmmvv'] = item.code || 'NaN';
+            taxonomyUpdates['text_mkrrmmvv'] = item.code || String(Number.NaN);
           } else {
-            taxonomyUpdates['text_mkrrmmvv'] = 'NaN';
+            taxonomyUpdates['text_mkrrmmvv'] = String(Number.NaN);
           }
         } else {
           const areaCode = await this.getCodeByItemName(areaSolicitanteValue);
-          taxonomyUpdates['text_mkrrmmvv'] = areaCode || 'NaN';
+          taxonomyUpdates['text_mkrrmmvv'] = areaCode || String(Number.NaN);
         }
         taxonomyUpdates['text_mkrrxqng'] = areaSolicitanteValue;
       }
@@ -3055,14 +3055,14 @@ export class MondayService {
       if (campaignData.objetivo) {
         taxonomyUpdates['text_mkrrhdh6'] = campaignData.objetivo;
         const objetivoCode = await this.getCodeByItemName(campaignData.objetivo);
-        taxonomyUpdates['text_mkrrraz2'] = objetivoCode || 'NaN';
+        taxonomyUpdates['text_mkrrraz2'] = objetivoCode || String(Number.NaN);
       }
 
       // Produto (ReferÃªncia + CÃ³digo)
       if (campaignData.produto) {
         taxonomyUpdates['text_mkrrfqft'] = campaignData.produto;
         const produtoCode = await this.getCodeByItemName(campaignData.produto, produtoBoardId);
-        taxonomyUpdates['text_mkrrjrnw'] = produtoCode || 'NaN';
+        taxonomyUpdates['text_mkrrjrnw'] = produtoCode || String(Number.NaN);
 
         // Subproduto (ReferÃªncia + CÃ³digo)
         const subproductData = await this.getSubproductByProduct(campaignData.produto);
@@ -3079,7 +3079,7 @@ export class MondayService {
       if (campaignData.segmento) {
         taxonomyUpdates['text_mkrrt32q'] = campaignData.segmento;
         const segmentoCode = await this.getCodeByItemName(campaignData.segmento);
-        taxonomyUpdates['text_mkrrhdf8'] = segmentoCode || 'NaN';
+        taxonomyUpdates['text_mkrrhdf8'] = segmentoCode || String(Number.NaN);
       }
 
       // Canal (ReferÃªncia + CÃ³digo)
@@ -3996,9 +3996,9 @@ export class MondayService {
       cv['text_mkrrg2hp'] = tipoCliente;
       if (tipoCliente) {
         const clienteCode = await this.getCodeByItemName(tipoCliente);
-        cv['text_mkrrna7e'] = clienteCode || 'NaN';
+        cv['text_mkrrna7e'] = clienteCode || String(Number.NaN);
       } else {
-        cv['text_mkrrna7e'] = 'NaN';
+        cv['text_mkrrna7e'] = String(Number.NaN);
       }
 
       // Campanha (ReferÃªncia + CÃ³digo)
@@ -4006,9 +4006,9 @@ export class MondayService {
       cv['text_mkrra7df'] = tipoCampanha;
       if (tipoCampanha) {
         const campanhaCode = await this.getCodeByItemName(tipoCampanha);
-        cv['text_mkrrcnpx'] = campanhaCode || 'NaN';
+        cv['text_mkrrcnpx'] = campanhaCode || String(Number.NaN);
       } else {
-        cv['text_mkrrcnpx'] = 'NaN';
+        cv['text_mkrrcnpx'] = String(Number.NaN);
       }
 
       // Disparo (ReferÃªncia + CÃ³digo)
@@ -4016,9 +4016,9 @@ export class MondayService {
       cv['text_mkrr9edr'] = tipoDisparo;
       if (tipoDisparo) {
         const disparoCode = await this.getCodeByItemName(tipoDisparo);
-        cv['text_mkrrmjcy'] = disparoCode || 'NaN';
+        cv['text_mkrrmjcy'] = disparoCode || String(Number.NaN);
       } else {
-        cv['text_mkrrmjcy'] = 'NaN';
+        cv['text_mkrrmjcy'] = String(Number.NaN);
       }
 
       // MecÃ¢nica (ReferÃªncia + CÃ³digo)
@@ -4026,9 +4026,9 @@ export class MondayService {
       cv['text_mkrrxf48'] = mecanica;
       if (mecanica) {
         const mecanicaCode = await this.getCodeByItemName(mecanica);
-        cv['text_mkrrxpjd'] = mecanicaCode || 'NaN';
+        cv['text_mkrrxpjd'] = mecanicaCode || String(Number.NaN);
       } else {
-        cv['text_mkrrxpjd'] = 'NaN';
+        cv['text_mkrrxpjd'] = String(Number.NaN);
       }
 
       // Ãrea Solicitante (ReferÃªncia + CÃ³digo)
@@ -4038,15 +4038,15 @@ export class MondayService {
         const item = await this.mondayItemRepository.findOne({ where: { item_id: areaSolicitanteValue } });
         if (item) {
           areaSolicitanteValue = item.name || areaSolicitanteValue;
-          cv['text_mkrrmmvv'] = item.code || 'NaN';
+          cv['text_mkrrmmvv'] = item.code || String(Number.NaN);
         } else {
-          cv['text_mkrrmmvv'] = 'NaN';
+          cv['text_mkrrmmvv'] = String(Number.NaN);
         }
       } else if (areaSolicitanteValue) {
         const areaCode = await this.getCodeByItemName(areaSolicitanteValue);
-        cv['text_mkrrmmvv'] = areaCode || 'NaN';
+        cv['text_mkrrmmvv'] = areaCode || String(Number.NaN);
       } else {
-        cv['text_mkrrmmvv'] = 'NaN';
+        cv['text_mkrrmmvv'] = String(Number.NaN);
       }
       cv['text_mkrrxqng'] = areaSolicitanteValue;
 
@@ -4055,9 +4055,9 @@ export class MondayService {
       cv['text_mkrrhdh6'] = objetivo;
       if (objetivo) {
         const objetivoCode = await this.getCodeByItemName(objetivo);
-        cv['text_mkrrraz2'] = objetivoCode || 'NaN';
+        cv['text_mkrrraz2'] = objetivoCode || String(Number.NaN);
       } else {
-        cv['text_mkrrraz2'] = 'NaN';
+        cv['text_mkrrraz2'] = String(Number.NaN);
       }
 
       // Produto (ReferÃªncia + CÃ³digo)
@@ -4065,9 +4065,9 @@ export class MondayService {
       cv['text_mkrrfqft'] = produto;
       if (produto) {
         const produtoCode = await this.getCodeByItemName(produto, produtoBoardId);
-        cv['text_mkrrjrnw'] = produtoCode || 'NaN';
+        cv['text_mkrrjrnw'] = produtoCode || String(Number.NaN);
       } else {
-        cv['text_mkrrjrnw'] = 'NaN';
+        cv['text_mkrrjrnw'] = String(Number.NaN);
       }
 
       // Subproduto (ReferÃªncia + CÃ³digo)
@@ -4091,9 +4091,9 @@ export class MondayService {
       cv['text_mkrrt32q'] = segmento;
       if (segmento) {
         const segmentoCode = await this.getCodeByItemName(segmento);
-        cv['text_mkrrhdf8'] = segmentoCode || 'NaN';
+        cv['text_mkrrhdf8'] = segmentoCode || String(Number.NaN);
       } else {
-        cv['text_mkrrhdf8'] = 'NaN';
+        cv['text_mkrrhdf8'] = String(Number.NaN);
       }
 
       // Campos compostos de taxonomia (text_mkr5kh2r e text_mkr3jr1s)
@@ -4711,11 +4711,11 @@ export class MondayService {
       // Monday API espera apenas o nome do label como string para change_simple_column_value
       if (typeof value === 'string') {
         // Remover aspas duplas se existirem
-        return value.replaceAll(/^"|"$/g, '');
+        return value.replaceAll(/(^")|("$)/g, '');
       }
       // Se Ã© array, pegar primeiro valor (dropdowns simples sÃ³ aceitam 1 valor)
       if (Array.isArray(value)) {
-        const cleanValue = String(value[0]).replaceAll(/^"|"$/g, '');
+        const cleanValue = String(value[0]).replaceAll(/(^")|("$)/g, '');
         return cleanValue;
       }
       // Se Ã© objeto com label, extrair label

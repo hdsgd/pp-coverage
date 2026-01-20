@@ -411,7 +411,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
   }
 
   /** Busca o "code" do monday_items a partir do valor do campo name, com filtro por board_id para evitar colisão */
-  private async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
+  protected async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
     const s = String(name || '').trim();
     if (!s) return undefined;
     try {

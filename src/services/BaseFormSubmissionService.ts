@@ -234,6 +234,25 @@ export abstract class BaseFormSubmissionService {
   }
 
   /**
+   * Busca o "code" do monday_items a partir do valor do campo name, com filtro por board_id para evitar colisão
+   */
+  protected async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
+    const s = String(name || '').trim();
+    if (!s) return undefined;
+    try {
+      const whereCondition: any = { name: s };
+      if (boardId) {
+        whereCondition.board_id = boardId;
+      }
+      const item = await this.mondayItemRepository.findOne({ where: whereCondition });
+      return item?.code ?? undefined;
+    } catch (e) {
+      console.warn('Falha ao obter code por name em monday_items:', e);
+      return undefined;
+    }
+  }
+
+  /**
    * Normaliza valores em array de strings
    */
   protected normalizeToStringArray(v: any): string[] {

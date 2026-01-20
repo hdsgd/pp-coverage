@@ -3654,7 +3654,7 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
     });
 
     it.skip('should handle savePreObjectLocally error handling', async () => {
-      const path = require('path');
+      const path = require('node:path');
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
       const mockJoin = jest.spyOn(path, 'join').mockImplementation(() => {
         throw new Error('Path join error');
