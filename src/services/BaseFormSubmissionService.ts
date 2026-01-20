@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
-import { FormSubmissionData, MondayColumnType, MondayFormMapping } from '../dto/MondayFormMappingDto';
+import { FormSubmissionData, MondayColumnType, MondayFormMapping, MARKETING_BOARD_FORM_MAPPING } from '../dto/MondayFormMappingDto';
 import { MondayItem } from '../entities/MondayItem';
 import { MondayBoard } from '../entities/MondayBoard';
 import { Subscriber } from '../entities/Subscriber';
@@ -594,5 +594,133 @@ export abstract class BaseFormSubmissionService {
     }
     
     return undefined;
+  }
+
+  /**
+   * Processa envio para o board de marketing (padrão comum entre serviços)
+   * @param enrichedFormData Dados enriquecidos do formulário
+   * @param itemName Nome do item para o board de marketing
+   * @param mainBoardItemId ID do item criado no board principal
+   * @param serviceLabel Label do serviço para logs (ex: "GAM", "CRM")
+   * @param excludeColumns Colunas adicionais a excluir do marketing board
+   * @returns ID do item criado no board de marketing
+   */
+  protected async processMarketingBoardSend(
+    enrichedFormData: FormSubmissionData,
+    itemName: string,
+    mainBoardItemId: string,
+    serviceLabel: string = '',
+    excludeColumns: string[] = []
+  ): Promise<string> {
+    const logPrefix = serviceLabel ? `${serviceLabel} ` : '';
+    console.log(`Enviando briefing ${logPrefix}para o board de marketing (Fluxo de MKT)...`);
+    
+    // Adicionar o ID do board principal aos dados para usar no mapeamento
+    enrichedFormData.data.main_board_item_id = mainBoardItemId;
+
+    // Converter text_mkvhvcw4 de ID para nome se necessário (ANTES de buildColumnValues)
+    if (enrichedFormData.data?.text_mkvhvcw4 && /^\d+$/.test(String(enrichedFormData.data.text_mkvhvcw4))) {
+      try {
+        const item = await this.mondayItemRepository.findOne({
+          where: { item_id: String(enrichedFormData.data.text_mkvhvcw4) }
+        });
+        if (item?.name) {
+          enrichedFormData.data.text_mkvhvcw4 = item.name;
+        }
+      } catch (error) {
+        console.warn(`Erro ao resolver área solicitante ${enrichedFormData.data.text_mkvhvcw4}:`, error);
+      }
+    }
+
+    // Construir os valores das colunas para o board de marketing
+    const marketingColumnValues = await this.buildColumnValues(enrichedFormData, MARKETING_BOARD_FORM_MAPPING);
+    
+    // Excluir campos especificados
+    for (const col of excludeColumns) {
+      delete marketingColumnValues[col];
+    }
+    
+    // Corrigir campo pessoas7 para usar o valor já resolvido do board principal
+    // O mapeamento aponta para pessoas5__1 (email), mas precisamos do valor resolvido
+    if (enrichedFormData.data?.["pessoas5__1"] !== undefined) {
+      const resolved = await this.resolvePeopleFromSubscribers(enrichedFormData.data["pessoas5__1"]);
+      if (resolved) {
+        marketingColumnValues["pessoas7"] = resolved;
+      }
+    }
+    
+    // Filtrar colunas excluídas antes de separar
+    const filteredMarketingColumnValues = { ...marketingColumnValues };
+    for (const col of excludeColumns) {
+      delete filteredMarketingColumnValues[col];
+    }
+    
+    // Separar colunas base e conectores
+    const { baseColumns: marketingBaseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(filteredMarketingColumnValues);
+    
+    // Salvar o JSON de pré-submissão do board de marketing (primeiro envio)
+    try {
+      const marketingPreData = {
+        board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
+        group_id: MARKETING_BOARD_FORM_MAPPING.group_id,
+        item_name: itemName,
+        column_values: marketingBaseColumns,
+      };
+      await this.savePreObjectLocally(marketingPreData, `${enrichedFormData.id || 'submission'}_${serviceLabel.toLowerCase()}_marketing_board_predata`);
+    } catch (e) {
+      console.warn(`Falha ao gerar/salvar pre-data do board de marketing ${logPrefix}:`, e);
+    }
+    
+    // Criar o item no board de marketing (primeira criação)
+    const marketingItemId = await this.createMondayItem(
+      MARKETING_BOARD_FORM_MAPPING.board_id,
+      MARKETING_BOARD_FORM_MAPPING.group_id,
+      itemName,
+      marketingBaseColumns
+    );
+    
+    console.log(`Board de marketing ${logPrefix}: item criado com ID ${marketingItemId} (primeiro envio).`);
+    
+    // Processar colunas conectar_quadros*
+    try {
+      const resolvedConnectColumns = await this.resolveConnectBoardColumns(connectColumnsRaw);
+      
+      if (Object.keys(resolvedConnectColumns).length > 0) {
+        // Salvar objeto localmente para auditoria
+        await this.saveObjectLocally(
+          {
+            board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
+            item_id: marketingItemId,
+            column_values: resolvedConnectColumns,
+          },
+          `${enrichedFormData.id || 'submission'}_${serviceLabel.toLowerCase()}_marketing_board_connect_columns`
+        );
+        
+        // Também salvar como PRE-DATA do segundo envio do board de marketing
+        await this.savePreObjectLocally(
+          {
+            board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
+            item_id: marketingItemId,
+            column_values: resolvedConnectColumns,
+          },
+          `${enrichedFormData.id || 'submission'}_${serviceLabel.toLowerCase()}_marketing_board_second_send_predata`
+        );
+        
+        // Enviar atualização de múltiplas colunas (segundo envio)
+        await this.mondayService.changeMultipleColumnValues(
+          MARKETING_BOARD_FORM_MAPPING.board_id,
+          marketingItemId,
+          resolvedConnectColumns
+        );
+        
+        console.log(`Board de marketing ${logPrefix}: colunas conectar_quadros* atualizadas para item ${marketingItemId} (segundo envio).`);
+      }
+    } catch (e) {
+      console.error(`Falha ao atualizar colunas conectar_quadros no board de marketing ${logPrefix}:`, e);
+    }
+    
+    console.log(`Conexão estabelecida: Board Marketing ${logPrefix}(${marketingItemId}) → Board Principal (${mainBoardItemId})`);
+    
+    return marketingItemId;
   }
 }

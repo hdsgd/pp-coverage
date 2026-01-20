@@ -1,4 +1,5 @@
 import { DisparoCRMBriefingMateriaisCriativosService } from '../../src/services/DisparoCRMBriefingMateriaisCriativos';
+import { BaseFormSubmissionService } from '../../src/services/BaseFormSubmissionService';
 import { MondayService } from '../../src/services/MondayService';
 import { AppDataSource } from '../../src/config/database';
 import { FormSubmissionData, MondayColumnType, SubitemData } from '../../src/dto/MondayFormMappingDto';
@@ -1450,7 +1451,11 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
 
     it('should handle failure in processMarketingBoardSend gracefully', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      jest.spyOn(service as any, 'processMarketingBoardSend').mockRejectedValueOnce(new Error('Marketing send failed'));
+      
+      // Mock o método protected da classe base BaseFormSubmissionService
+      const processMarketingBoardSendSpy = jest
+        .spyOn(BaseFormSubmissionService.prototype as any, 'processMarketingBoardSend')
+        .mockRejectedValueOnce(new Error('Marketing send failed'));
 
       const formData: FormSubmissionData = {
         id: 'form9',
@@ -1469,7 +1474,13 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       const result = await service.processFormSubmission(formData);
 
       expect(result).toBe('101');
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Erro ao processar envio para board de marketing'), expect.any(Error));
+      // O método processFormSubmission deve capturar o erro e continuar
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Erro ao processar envio para board de marketing'), 
+        expect.any(Error)
+      );
+      
+      processMarketingBoardSendSpy.mockRestore();
       consoleErrorSpy.mockRestore();
     });
   });

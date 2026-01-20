@@ -1,8 +1,7 @@
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { 
-  BRIEFING_MATERIAIS_CRIATIVOS_FORM_MAPPING, 
-  MARKETING_BOARD_FORM_MAPPING,
+  BRIEFING_MATERIAIS_CRIATIVOS_FORM_MAPPING,
   FormSubmissionData, 
   MondayFormMapping 
 } from '../dto/MondayFormMappingDto';
@@ -131,7 +130,7 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
       
       // Enviar para o board de marketing (seguindo padrão do CRM)
       try {
-        await this.processMarketingBoardSend(enrichedFormData, itemName, mondayItemId);
+        await super.processMarketingBoardSend(enrichedFormData, itemName, mondayItemId, 'NEW');
       } catch (error) {
         console.error('Erro ao processar envio para board de marketing:', error);
         // Não falhar o processo principal se o envio para marketing falhar
@@ -143,114 +142,6 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
       console.error('Erro ao processar submissão do briefing de materiais criativos:', error);
       throw new Error(`Falha ao criar item na Monday.com para Briefing: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
-  }
-
-  /**
-   * Processa envio para o board de marketing (seguindo padrão do CRM)
-   */
-  private async processMarketingBoardSend(
-    enrichedFormData: FormSubmissionData,
-    itemName: string,
-    mainBoardItemId: string
-  ): Promise<string> {
-    console.log('Enviando briefing para o board de marketing (Fluxo de MKT)...');
-    
-    // Adicionar o ID do board principal aos dados para usar no mapeamento
-    enrichedFormData.data.main_board_item_id = mainBoardItemId;
-
-    // Converter text_mkvhvcw4 de ID para nome se necessário (ANTES de buildColumnValues)
-    if (enrichedFormData.data?.text_mkvhvcw4 && /^\d+$/.test(String(enrichedFormData.data.text_mkvhvcw4))) {
-      try {
-        const item = await this.mondayItemRepository.findOne({
-          where: { item_id: String(enrichedFormData.data.text_mkvhvcw4) }
-        });
-        if (item?.name) {
-          enrichedFormData.data.text_mkvhvcw4 = item.name;
-        }
-      } catch (error) {
-        console.warn(`Erro ao resolver área solicitante ${enrichedFormData.data.text_mkvhvcw4}:`, error);
-      }
-    }
-
-    // Construir os valores das colunas para o board de marketing
-    const marketingColumnValues = await this.buildColumnValues(enrichedFormData, MARKETING_BOARD_FORM_MAPPING);
-    
-    // Corrigir campo pessoas7 para usar o valor já resolvido do board principal
-    // O mapeamento aponta para pessoas5__1 (email), mas precisamos do valor resolvido
-    if (enrichedFormData.data?.["pessoas5__1"] !== undefined) {
-      const resolved = await this.resolvePeopleFromSubscribers(enrichedFormData.data["pessoas5__1"]);
-      if (resolved) {
-        marketingColumnValues["pessoas7"] = resolved;
-      }
-    }
-    
-    // Separar colunas base e conectores (seguindo padrão do CRM)
-    const { baseColumns: marketingBaseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(marketingColumnValues);
-    
-    // Salvar o JSON de pré-submissão do board de marketing (primeiro envio)
-    try {
-      const marketingPreData = {
-        board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
-        group_id: MARKETING_BOARD_FORM_MAPPING.group_id,
-        item_name: itemName,
-        column_values: marketingBaseColumns,
-      };
-      await this.savePreObjectLocally(marketingPreData, `${enrichedFormData.id || 'submission'}_marketing_board_predata`);
-    } catch (e) {
-      console.warn('Falha ao gerar/salvar pre-data do board de marketing:', e);
-    }
-    
-    // Criar o item no board de marketing (primeira criação)
-    const marketingItemId = await this.createMondayItem(
-      MARKETING_BOARD_FORM_MAPPING.board_id,
-      MARKETING_BOARD_FORM_MAPPING.group_id,
-      itemName,
-      marketingBaseColumns
-    );
-    
-    console.log(`Board de marketing: item criado com ID ${marketingItemId} (primeiro envio).`);
-    
-    // Processar colunas conectar_quadros* (seguindo padrão do CRM)
-    try {
-      const resolvedConnectColumns = await this.resolveConnectBoardColumns(connectColumnsRaw);
-      
-      if (Object.keys(resolvedConnectColumns).length > 0) {
-        // Salvar objeto localmente para auditoria
-        await this.saveObjectLocally(
-          {
-            board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
-            item_id: marketingItemId,
-            column_values: resolvedConnectColumns,
-          },
-          `${enrichedFormData.id || 'submission'}_marketing_board_connect_columns`
-        );
-        
-        // Também salvar como PRE-DATA do segundo envio do board de marketing
-        await this.savePreObjectLocally(
-          {
-            board_id: MARKETING_BOARD_FORM_MAPPING.board_id,
-            item_id: marketingItemId,
-            column_values: resolvedConnectColumns,
-          },
-          `${enrichedFormData.id || 'submission'}_marketing_board_second_send_predata`
-        );
-        
-        // Enviar atualização de múltiplas colunas (segundo envio)
-        await this.mondayService.changeMultipleColumnValues(
-          MARKETING_BOARD_FORM_MAPPING.board_id,
-          marketingItemId,
-          resolvedConnectColumns
-        );
-        
-        console.log(`Board de marketing: colunas conectar_quadros* atualizadas para item ${marketingItemId} (segundo envio).`);
-      }
-    } catch (e) {
-      console.error('Falha ao atualizar colunas conectar_quadros no board de marketing:', e);
-    }
-    
-    console.log(`Conexão estabelecida: Board Marketing (${marketingItemId}) → Board Principal (${mainBoardItemId})`);
-    
-    return marketingItemId;
   }
 
 
