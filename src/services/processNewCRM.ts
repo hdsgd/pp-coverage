@@ -1,5 +1,6 @@
-﻿import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
+import { BoardIds } from '../config/boardIds';
 import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
   CAMPAIGN_FORM_MAPPING,
@@ -16,18 +17,6 @@ import { ChannelScheduleService } from './ChannelScheduleService';
 export class NewCRMService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
   private readonly channelScheduleRepository: Repository<ChannelSchedule>;
-
-  // Board que contém os horários disponíveis (para calcular o "próximo horário")
-  private static readonly TIME_SLOTS_BOARD_ID = '9965fb6d-34c3-4df6-b1fd-a67013fbe950';
-  // Novo: Segundo board alvo do espelhamento
-  private static readonly SECOND_BOARD_ID = '7463706726';
-  // Assumindo grupo padrão "topics" para o segundo board (ajuste se necessário)
-  private static readonly SECOND_BOARD_GROUP_ID = 'topics';
-  private static readonly SECOND_BOARD_CONNECT_COLUMNS = [
-    'text_mkvgjh0w',
-    'conectar_quadros8__1',
-  ];
-
   // Novo: Correlações para preencher o segundo board
   // 1) Correlação entre chaves do formulário (após tratamento) e chaves do objeto do segundo envio
   // Preenchidas com strings vazias para edição manual conforme solicitado
@@ -252,7 +241,7 @@ export class NewCRMService extends BaseFormSubmissionService {
       try {
         await this.savePreObjectLocally(
           {
-            board_id: NewCRMService.SECOND_BOARD_ID,
+            board_id: BoardIds.MARKETING_BOARD_ID,
             item_name: itemNameSecond,
             column_values: baseColumns,
           },
@@ -266,8 +255,8 @@ export class NewCRMService extends BaseFormSubmissionService {
         let secondItemId: string;
         try {
           secondItemId = await this.createMondayItem(
-            NewCRMService.SECOND_BOARD_ID,
-            NewCRMService.SECOND_BOARD_GROUP_ID,
+            BoardIds.MARKETING_BOARD_ID,
+            BoardIds.MARKETING_BOARD_GROUP_ID,
             itemNameSecond || fallbackItemName,
             baseColumns
           );
@@ -300,7 +289,7 @@ export class NewCRMService extends BaseFormSubmissionService {
         if (Object.keys(resolved).length > 0) {
           await this.saveObjectLocally(
             {
-              board_id: NewCRMService.SECOND_BOARD_ID,
+              board_id: BoardIds.MARKETING_BOARD_ID,
               item_id: secondItemId,
               column_values: resolved,
             },
@@ -309,7 +298,7 @@ export class NewCRMService extends BaseFormSubmissionService {
 
           await this.savePreObjectLocally(
             {
-              board_id: NewCRMService.SECOND_BOARD_ID,
+              board_id: BoardIds.MARKETING_BOARD_ID,
               item_id: secondItemId,
               column_values: resolved,
             },
@@ -323,7 +312,7 @@ export class NewCRMService extends BaseFormSubmissionService {
           let secondBoardConnectError: Error | undefined;
           try {
             await this.mondayService.changeMultipleColumnValues(
-              NewCRMService.SECOND_BOARD_ID,
+              BoardIds.MARKETING_BOARD_ID,
               secondItemId,
               resolved
             );
@@ -706,7 +695,7 @@ export class NewCRMService extends BaseFormSubmissionService {
   // Novo: limita as colunas conectar_quadros ao conjunto exigido para o segundo board
   public pickSecondBoardConnectColumns(connectColumnsRaw: Record<string, any>): Record<string, any> {
     const filtered: Record<string, any> = {};
-    for (const k of NewCRMService.SECOND_BOARD_CONNECT_COLUMNS) {
+    for (const k of BoardIds.MARKETING_BOARD_CONNECT_COLUMNS) {
       if (connectColumnsRaw[k] !== undefined) filtered[k] = connectColumnsRaw[k];
     }
     return filtered;
@@ -836,7 +825,7 @@ export class NewCRMService extends BaseFormSubmissionService {
 
     // Carrega slots de horários ativos, ordenados por nome ASC
     const rawTimeSlots = await this.mondayItemRepository.find({
-      where: { board_id: NewCRMService.TIME_SLOTS_BOARD_ID, status: 'Ativo' },
+      where: { board_id: BoardIds.CRM_TIME_SLOTS_BOARD_ID, status: 'Ativo' },
       order: { name: 'ASC' }
     });
 

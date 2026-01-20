@@ -1,4 +1,4 @@
-﻿import fileUploadRoutes from '../../src/routes/fileUploadRoutes';
+import fileUploadRoutes from '../../src/routes/fileUploadRoutes';
 import express from 'express';
 import request from 'supertest';
 import * as pathSecurity from '../../src/utils/pathSecurity';

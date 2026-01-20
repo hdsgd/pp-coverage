@@ -806,16 +806,9 @@ describe('NewBriefingMateriaisCriativosService', () => {
   });
 
   describe('processMarketingBoardSend', () => {
-    it.skip('should process marketing board send successfully', async () => {
-      // Complex test requiring extensive mocking - skipped for now
-    });
-
-    it.skip('should resolve area solicitante from ID to name', async () => {
+it.skip('should resolve area solicitante from ID to name', async () => {
       // Complex test - requires full integration mock
     });
 
-    it.skip('should handle pessoas7 field correctly', async () => {
-      // Complex test - requires full integration mock
-    });
-  });
+});
 });

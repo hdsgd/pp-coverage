@@ -430,7 +430,7 @@ export abstract class BaseFormSubmissionService {
     // JSON.stringify já escapa \n como \\n corretamente
     // Depois escapamos as aspas duplas para poder inserir dentro da string GraphQL
     const columnValuesJson = JSON.stringify(columnValues)
-      .replaceAll(/\\/g, '\\\\')  // Escapar barras invertidas primeiro
+      .replaceAll('\\', '\\\\')  // Escapar barras invertidas primeiro
       .replaceAll("\"", '\\"');   // Depois escapar aspas duplas
     
     const mutation = `

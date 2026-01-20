@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { buildSafePath } from '../utils/pathSecurity';
 
 const router = express.Router();

@@ -1906,21 +1906,6 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
   });
 
   describe('processDisparoCRMBriefingGamSubmission - advanced coverage', () => {
-    it.skip('should process with subitems and call adjustment methods', async () => {
-      // Teste complexo que requer mock extensivo de getSubproductCodeByProduct e outras dependências
-    });
-
-    it.skip('should call processMarketingBoardSend when marketing_board exists', async () => {
-      // Teste complexo - assinatura do processMarketingBoardSend é diferente do esperado
-    });
-
-    it.skip('should call processFileUpload when file field exists', async () => {
-      // Teste complexo - assinatura do processFileUpload é diferente do esperado
-    });
-
-    it.skip('should call processSecondBoardSendsForSubitems when second_boards exist', async () => {
-      // Teste complexo - assinatura do processSecondBoardSendsForSubitems é diferente do esperado
-    });
   });
 
   describe('buildColumnValues - comprehensive branch coverage', () => {
