@@ -41,22 +41,12 @@ jobs:
           path: coverage
 
       - name: SonarCloud Scan
-        # Using commit SHA instead of tag for security (v2.3.0)
-        uses: SonarSource/sonarcloud-github-action@4b4d7634dab97dcee0b75763a54a6dc92a9e6bc1
+        uses: SonarSource/sonarcloud-github-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_PATH: ${{ env.NODE_PATH }}
-          PATH: ${{ env.PATH }}
         with:
+          projectBaseDir: .
           args: >-
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
-            -Dsonar.projectName=pp-coverage
-            -Dsonar.sources=src
-            -Dsonar.tests=tests
-            -Dsonar.test.inclusions=tests/**/*.test.ts
-            -Dsonar.exclusions=tests/**
-            -Dsonar.coverage.exclusions=tests/**
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.typescript.tsconfigPath=tsconfig.json
