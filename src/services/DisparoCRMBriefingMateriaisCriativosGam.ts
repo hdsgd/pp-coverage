@@ -18,6 +18,7 @@ import { Subscriber } from '../entities/Subscriber';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { MondayService } from './MondayService';
+import { getValueByPath } from '../utils/objectHelpers';
 
 export class DisparoCRMBriefingMateriaisCriativosGamService {
   private readonly mondayService: MondayService;
@@ -1260,7 +1261,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
    */
   private extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
     if (mapping.item_name_field) {
-      const name = this.getValueByPath(formData, mapping.item_name_field);
+      const name = getValueByPath(formData, mapping.item_name_field);
       if (name && typeof name === 'string') {
         return name;
       }
@@ -1332,7 +1333,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
           continue; // Pular campos excluídos
         }
 
-        let value = this.getValueByPath(formData, columnMapping.form_field_path);
+        let value = getValueByPath(formData, columnMapping.form_field_path);
 
         // Se o mapeamento for para data__1 e temos uma data do subitem mais próximo, usar ela
         if (columnMapping.monday_column_id === 'data__1' && closestSubitemDate) {
@@ -1442,14 +1443,6 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
     return columnValues;
   }
 
-  /**
-   * Obtém valor do objeto usando dot notation (ex: "data.name")
-   */
-  private getValueByPath(obj: any, path: string): any {
-    return path.split('.').reduce((current: any, key: string) => {
-      return current && current[key] !== undefined ? current[key] : undefined;
-    }, obj);
-  }
 
   /**
    * Determina o tipo de coluna baseado no nome do campo
@@ -1960,7 +1953,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
    */
   private async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
     try {
-      const fileName = this.getValueByPath(formData, 'data.enviar_arquivo__1');
+      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
 
       if (!fileName || typeof fileName !== 'string') {
         return;

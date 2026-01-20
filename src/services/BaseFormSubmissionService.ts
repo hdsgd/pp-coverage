@@ -8,6 +8,7 @@ import { MondayBoard } from '../entities/MondayBoard';
 import { Subscriber } from '../entities/Subscriber';
 import { MondayService } from './MondayService';
 import { buildSafePath, sanitizeFilename } from '../utils/pathSecurity';
+import { getValueByPath } from '../utils/objectHelpers';
 import { BriefingValidator } from '../utils/briefingValidator';
 
 export abstract class BaseFormSubmissionService {
@@ -110,11 +111,10 @@ export abstract class BaseFormSubmissionService {
 
   /**
    * Obtém valor do objeto usando dot notation (ex: "data.name")
+   * @deprecated Use getValueByPath from utils/objectHelpers instead
    */
   protected getValueByPath(obj: any, path: string): any {
-    return path.split('.').reduce((current: any, key: string) => {
-      return current?.[key];
-    }, obj);
+    return getValueByPath(obj, path);
   }
 
   /**

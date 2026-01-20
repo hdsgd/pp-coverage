@@ -777,47 +777,6 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
     });
   });
 
-  describe('getValueByPath', () => {
-    it('should get simple value from data', () => {
-      const data: FormSubmissionData = {
-        id: 'form1',
-        timestamp: '2024-01-01',
-        formTitle: 'Test',
-        data: { field1: 'value1' }
-      };
-
-      const result = (service as any).getValueByPath(data, 'data.field1');
-
-      expect(result).toBe('value1');
-    });
-
-    it('should get nested value', () => {
-      const data: FormSubmissionData = {
-        id: 'form1',
-        timestamp: '2024-01-01',
-        formTitle: 'Test',
-        data: { nested: { field: 'deep value' } }
-      };
-
-      const result = (service as any).getValueByPath(data, 'data.nested.field');
-
-      expect(result).toBe('deep value');
-    });
-
-    it('should return undefined for missing path', () => {
-      const data: FormSubmissionData = {
-        id: 'form1',
-        timestamp: '2024-01-01',
-        formTitle: 'Test',
-        data: {}
-      };
-
-      const result = (service as any).getValueByPath(data, 'data.missing.path');
-
-      expect(result).toBeUndefined();
-    });
-  });
-
   describe('toYYYYMMDD', () => {
     it('should convert date string to YYYY-MM-DD', () => {
       const result = (service as any).toYYYYMMDD('2024-01-15');
@@ -1782,33 +1741,6 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
       );
 
       expect(result).toBe('888');
-    });
-  });
-
-  describe('getValueByPath - complex paths', () => {
-    it('should handle deeply nested paths', () => {
-      const obj = {
-        level1: {
-          level2: {
-            level3: {
-              value: 'deep'
-            }
-          }
-        }
-      };
-
-      const result = (service as any).getValueByPath(obj, 'level1.level2.level3.value');
-      expect(result).toBe('deep');
-    });
-
-    it.skip('should handle array notation', () => {
-      // getValueByPath usa reduce com split('.'), não suporta array[0]
-      const obj = {
-        items: ['a', 'b', 'c']
-      };
-
-      const result = (service as any).getValueByPath(obj, 'items.0');
-      expect(result).toBe('a');
     });
   });
 
@@ -3499,25 +3431,6 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
       expect(result5).toEqual([]);
     });
 
-    it('should handle getValueByPath with nested objects', () => {
-      const obj = {
-        level1: {
-          level2: {
-            level3: 'value'
-          }
-        }
-      };
-
-      const result1 = (service as any).getValueByPath(obj, 'level1.level2.level3');
-      expect(result1).toBe('value');
-
-      const result2 = (service as any).getValueByPath(obj, 'level1.nonexistent');
-      expect(result2).toBeUndefined();
-
-      const result3 = (service as any).getValueByPath(null, 'any.path');
-      expect(result3).toBeUndefined();
-    });
-
     it('should handle extractItemName with different scenarios', () => {
       const mapping = DISPARO_CRM_BRIEFING_MATERIAIS_CRIATIVOS_GAM_FORM_MAPPING;
 
@@ -4116,28 +4029,6 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
       expect(() => {
         (service as any).validateSpecificFields(data);
       }).toThrow();
-    });
-
-    it('should handle getValueByPath with simple dot notation', () => {
-      const obj = {
-        user: {
-          profile: {
-            name: 'John'
-          }
-        }
-      };
-
-      const result = (service as any).getValueByPath(obj, 'user.profile.name');
-      expect(result).toBe('John');
-    });
-
-    it('should handle getValueByPath with non-existent array index', () => {
-      const obj = {
-        items: [{ name: 'first' }]
-      };
-
-      const result = (service as any).getValueByPath(obj, 'items[5].name');
-      expect(result).toBeUndefined();
     });
 
     it('should handle processMarketingBoardSend when connect columns are empty', async () => {

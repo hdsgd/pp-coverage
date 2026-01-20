@@ -2065,23 +2065,6 @@ describe('NewCampaignGAMService', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should handle getValueByPath with array notation', () => {
-      const formData = {
-        id: 'test',
-        formTitle: 'Test',
-        timestamp: '2024-01-01T10:00:00Z',
-        data: {
-          items: [
-            { name: 'first' },
-            { name: 'second' }
-          ]
-        }
-      };
-
-      const result = (service as any).getValueByPath(formData, 'data.items');
-      expect(result).toEqual([{ name: 'first' }, { name: 'second' }]);
-    });
-
     it('should handle normalizeToStringArray with complex object', () => {
       const input = { labels: ['Label1', 'Label2'] };
       const result = (service as any).normalizeToStringArray(input);

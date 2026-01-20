@@ -17,6 +17,7 @@ import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { MondayService } from './MondayService';
 import { sanitizeFilename } from '../utils/pathSecurity';
+import { getValueByPath } from '../utils/objectHelpers';
 
 export class NewCampaignGAMService {
   private readonly mondayService: MondayService;
@@ -1109,7 +1110,7 @@ export class NewCampaignGAMService {
    */
   private extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
     if (mapping.item_name_field) {
-      const name = this.getValueByPath(formData, mapping.item_name_field);
+      const name = getValueByPath(formData, mapping.item_name_field);
       if (name && typeof name === 'string') {
         return name;
       }
@@ -1181,7 +1182,7 @@ export class NewCampaignGAMService {
           continue; // Pular campos excluídos
         }
 
-        let value = this.getValueByPath(formData, columnMapping.form_field_path);
+        let value = getValueByPath(formData, columnMapping.form_field_path);
         
         // Debug: Log do mapeamento GAM
         if (columnMapping.form_field_path.startsWith('data.gam_')) {
@@ -1298,14 +1299,6 @@ export class NewCampaignGAMService {
     return columnValues;
   }
 
-  /**
-   * Obtém valor do objeto usando dot notation (ex: "data.name")
-   */
-  private getValueByPath(obj: any, path: string): any {
-    return path.split('.').reduce((current: any, key: string) => {
-      return current && current[key] !== undefined ? current[key] : undefined;
-    }, obj);
-  }
 
   /**
    * Determina o tipo de coluna baseado no nome do campo

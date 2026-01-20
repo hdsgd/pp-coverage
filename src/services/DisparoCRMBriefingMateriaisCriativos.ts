@@ -940,21 +940,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
   }
 
   /**
-   * Extrai o nome do item baseado na configuração de mapeamento
-   */
-  protected extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
-    if (mapping.item_name_field) {
-      const name = this.getValueByPath(formData, mapping.item_name_field);
-      if (name && typeof name === 'string') {
-        return name;
-      }
-    }
-
-    // Fallback para nome padrão
-    return mapping.default_item_name || `Formulário ${formData.id}`;
-  }
-
-  /**
    * Constrói o objeto column_values para a mutation da Monday.com
    */
   protected async buildColumnValues(formData: FormSubmissionData, mapping: MondayFormMapping): Promise<Record<string, any>> {
@@ -1097,15 +1082,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
     }
 
     return columnValues;
-  }
-
-  /**
-   * Obtém valor do objeto usando dot notation (ex: "data.name")
-   */
-  protected getValueByPath(obj: any, path: string): any {
-    return path.split('.').reduce((current: any, key: string) => {
-      return current?.[key];
-    }, obj);
   }
 
   /**
