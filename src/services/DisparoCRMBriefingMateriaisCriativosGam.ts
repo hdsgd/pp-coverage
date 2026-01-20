@@ -19,6 +19,7 @@ import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { MondayService } from './MondayService';
 import { getValueByPath } from '../utils/objectHelpers';
+import { convertDateFormat } from '../utils/dateFormatters';
 
 export class DisparoCRMBriefingMateriaisCriativosGamService {
   private readonly mondayService: MondayService;
@@ -971,6 +972,8 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
   }
 
   /** Busca o "code" do monday_items a partir do valor do campo name, com filtro por board_id para evitar colisão */
+
+
   private async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
     const s = String(name || '').trim();
     if (!s) return undefined;
@@ -1535,7 +1538,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
 
         if (scheduleData.id_canal && scheduleData.data && scheduleData.qtd > 0) {
           // Converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
-          const convertedData = this.convertDateFormat(scheduleData.data);
+          const convertedData = convertDateFormat(scheduleData.data);
           
           await this.channelScheduleService.create({
             id_canal: scheduleData.id_canal,
@@ -1559,20 +1562,7 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
   /**
    * Converte data de YYYY-MM-DD para DD/MM/YYYY se necessário
    */
-  private convertDateFormat(dateString: string): string {
-    // Se já está no formato DD/MM/YYYY, retorna como está
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
-      return dateString;
-    }
-    
-    // Se está no formato YYYY-MM-DD, converte
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      const [year, month, day] = dateString.split('-');
-      return `${day}/${month}/${year}`;
-    }
-    
-    return dateString;
-  }
+
 
   /**
    * Formata valor baseado no tipo de coluna da Monday.com

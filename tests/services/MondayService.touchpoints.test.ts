@@ -229,9 +229,6 @@ describe('MondayService - Touchpoint Methods', () => {
           }]
         }
       });
-
-      // Mock convertDateFormat
-      jest.spyOn(service as any, 'convertDateFormat').mockImplementation((...args: any[]) => args[0]);
     });
 
     it.skip('deve deletar agendamento antigo e criar novo (requer integração DB)', async () => {

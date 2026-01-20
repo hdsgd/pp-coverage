@@ -9,6 +9,7 @@ import { AppDataSource } from '../../src/config/database';
 import type { FormSubmissionData } from '../../src/dto/MondayFormMappingDto';
 import { MondayColumnType, DISPARO_CRM_BRIEFING_MATERIAIS_CRIATIVOS_GAM_FORM_MAPPING } from '../../src/dto/MondayFormMappingDto';
 import fs from 'fs';
+import { convertDateFormat } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/services/MondayService');
 jest.mock('../../src/services/ChannelScheduleService');
@@ -1415,17 +1416,17 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
 
   describe('convertDateFormat', () => {
     it('should convert YYYY-MM-DD to DD/MM/YYYY', () => {
-      const result = (service as any).convertDateFormat('2024-01-15');
+      const result = convertDateFormat('2024-01-15');
       expect(result).toBe('15/01/2024');
     });
 
     it('should keep DD/MM/YYYY as is', () => {
-      const result = (service as any).convertDateFormat('15/01/2024');
+      const result = convertDateFormat('15/01/2024');
       expect(result).toBe('15/01/2024');
     });
 
     it('should handle invalid formats', () => {
-      const result = (service as any).convertDateFormat('invalid');
+      const result = convertDateFormat('invalid');
       expect(result).toBe('invalid');
     });
   });
@@ -3893,17 +3894,17 @@ describe('DisparoCRMBriefingMateriaisCriativosGamService', () => {
     });
 
     it('should handle convertDateFormat with DD/MM/YYYY input', () => {
-      const result = (service as any).convertDateFormat('15/01/2024');
+      const result = convertDateFormat('15/01/2024');
       expect(result).toBe('15/01/2024'); // Already in correct format
     });
 
     it('should handle convertDateFormat with YYYY-MM-DD input', () => {
-      const result = (service as any).convertDateFormat('2024-01-15');
+      const result = convertDateFormat('2024-01-15');
       expect(result).toBe('15/01/2024'); // Converted
     });
 
     it('should handle convertDateFormat with unknown format', () => {
-      const result = (service as any).convertDateFormat('invalid-date');
+      const result = convertDateFormat('invalid-date');
       expect(result).toBe('invalid-date'); // Returns as-is
     });
 

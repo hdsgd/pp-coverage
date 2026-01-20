@@ -7,6 +7,7 @@ import { MondayBoard } from '../../src/entities/MondayBoard';
 import { Subscriber } from '../../src/entities/Subscriber';
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
 import fs from 'fs';
+import { convertDateFormat } from '../../src/utils/dateFormatters';
 
 // Mock modules
 jest.mock('../../src/services/MondayService');
@@ -1697,17 +1698,17 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
 
   describe('convertDateFormat', () => {
     it('should convert YYYY-MM-DD to DD/MM/YYYY', () => {
-      expect((service as any).convertDateFormat('2024-12-15')).toBe('15/12/2024');
-      expect((service as any).convertDateFormat('2024-01-01')).toBe('01/01/2024');
+      expect(convertDateFormat('2024-12-15')).toBe('15/12/2024');
+      expect(convertDateFormat('2024-01-01')).toBe('01/01/2024');
     });
 
     it('should keep DD/MM/YYYY format unchanged', () => {
-      expect((service as any).convertDateFormat('15/12/2024')).toBe('15/12/2024');
+      expect(convertDateFormat('15/12/2024')).toBe('15/12/2024');
     });
 
     it('should return original string for invalid formats', () => {
-      expect((service as any).convertDateFormat('invalid-date')).toBe('invalid-date');
-      expect((service as any).convertDateFormat('12-15-2024')).toBe('12-15-2024');
+      expect(convertDateFormat('invalid-date')).toBe('invalid-date');
+      expect(convertDateFormat('12-15-2024')).toBe('12-15-2024');
     });
   });
 

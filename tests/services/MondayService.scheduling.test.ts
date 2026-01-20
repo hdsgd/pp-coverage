@@ -76,7 +76,6 @@ describe('MondayService.updateTouchpointScheduling integration coverage', () => 
     };
 
     jest.spyOn(service as any, 'makeGraphQLRequest').mockResolvedValue(mockGraphQLResponse);
-    jest.spyOn(service as any, 'convertDateFormat').mockImplementation((value: any) => value);
 
     mockQueryBuilder.getMany.mockResolvedValue([
       { id: 'old-schedule-1', hora: '10:00:00', area_solicitante: 'Marketing' },

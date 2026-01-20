@@ -11,6 +11,7 @@ import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
 import { Subscriber } from '../../src/entities/Subscriber';
 import { SubitemData } from '../../src/dto/MondayFormMappingDto';
 import axios from 'axios';
+import { convertToISODate } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/config/database');
 jest.mock('axios');
@@ -633,7 +634,7 @@ describe('MondayService - Helper Methods', () => {
       const date = '2024-12-25';
 
       // Act
-      const result = (service as any).convertDateFormat(date);
+      const result = convertToISODate(date);
 
       // Assert
       expect(result).toBe('2024-12-25');
@@ -644,7 +645,7 @@ describe('MondayService - Helper Methods', () => {
       const date = '25/12/2024';
 
       // Act
-      const result = (service as any).convertDateFormat(date);
+      const result = convertToISODate(date);
 
       // Assert
       expect(result).toBe('2024-12-25');
@@ -655,7 +656,7 @@ describe('MondayService - Helper Methods', () => {
       const date = '01/01/2024';
 
       // Act
-      const result = (service as any).convertDateFormat(date);
+      const result = convertToISODate(date);
 
       // Assert
       expect(result).toBe('2024-01-01');
@@ -666,7 +667,7 @@ describe('MondayService - Helper Methods', () => {
       const date = '2024/12/25';
 
       // Act
-      const result = (service as any).convertDateFormat(date);
+      const result = convertToISODate(date);
 
       // Assert
       expect(result).toBe('2024/12/25');
@@ -677,7 +678,7 @@ describe('MondayService - Helper Methods', () => {
       const date = '';
 
       // Act
-      const result = (service as any).convertDateFormat(date);
+      const result = convertToISODate(date);
 
       // Assert
       expect(result).toBe('');

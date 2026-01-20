@@ -9,6 +9,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import FormData from "form-data";
 import { FormSubmissionData, SubitemData } from '../dto/MondayFormMappingDto';
+import { convertToISODate } from '../utils/dateFormatters';
 
 export class MondayService {
   private readonly mondayBoardRepository: Repository<MondayBoard>;
@@ -1801,16 +1802,16 @@ export class MondayService {
 
       return subproduct?.code || null;
     } catch (error) {
-      console.error('Erro ao buscar cÃ³digo de subproduto:', error);
+      console.error('Erro ao buscar código de subproduto:', error);
       return null;
     }
   }
 
   /**
-   * Busca o cÃ³digo de um item pelo nome no monday_items
+   * Busca o código de um item pelo nome no monday_items
    * @param name Nome do item para buscar
-   * @param boardId ID do board para filtrar (opcional, evita colisÃµes)
-   * @returns CÃ³digo do item ou undefined se nÃ£o encontrar
+   * @param boardId ID do board para filtrar (opcional, evita colisões)
+   * @returns Código do item ou undefined se não encontrar
    */
   private async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
     const s = String(name || '').trim();
@@ -1829,7 +1830,7 @@ export class MondayService {
   }
 
   /**
-   * Busca os dados completos do subproduto associado a um produto especÃ­fico
+   * Busca os dados completos do subproduto associado a um produto específico
    * @param productName Nome do produto para buscar subprodutos
    * @returns Objeto com name e code do subproduto ou null se nÃ£o encontrar
    */
@@ -3400,7 +3401,7 @@ export class MondayService {
 
         if (canalItem) {
           const oldCanalId = canalItem.id;
-          const oldDataMysql = this.convertDateFormat(oldData);
+          const oldDataMysql = convertToISODate(oldData);
           const dataString = new Date(oldDataMysql).toISOString().split('T')[0];
           const horaFormatted = oldHora.substring(0, 5);
 
@@ -3434,7 +3435,7 @@ export class MondayService {
 
         if (canalItem) {
           const newCanalId = canalItem.id;
-          const newDataMysql = this.convertDateFormat(newData);
+          const newDataMysql = convertToISODate(newData);
 
           const novoAgendamento = channelScheduleRepository.create({
             id_canal: newCanalId,
@@ -3877,7 +3878,7 @@ export class MondayService {
     const channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
     
     // Converter data para formato MySQL YYYY-MM-DD
-    const mysqlData = this.convertDateFormat(dataStr);
+    const mysqlData = convertToISODate(dataStr);
 
     const schedules = await channelScheduleRepository.find({
       where: { id_canal: idCanal, data: mysqlData as any, hora: hora }
@@ -4305,7 +4306,7 @@ export class MondayService {
         console.log(`[INSERT_SCHEDULES] Canal: ${idCanal}, Data: ${data}, Hora: ${hora}, Qtd: ${qtd.toLocaleString('pt-BR')}`);
 
         // Converter data para formato MySQL (YYYY-MM-DD)
-        const mysqlData = this.convertDateFormat(data);
+        const mysqlData = convertToISODate(data);
 
         // Criar registro no channel_schedules
         const newSchedule = channelScheduleRepository.create({
@@ -4378,18 +4379,7 @@ export class MondayService {
   /**
    * Converte data para formato MySQL DATE (YYYY-MM-DD)
    */
-  private convertDateFormat(dateString: string): string {
-    // Se jÃ¡ estÃ¡ no formato YYYY-MM-DD, retornar
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return dateString;
-    }
-    // Se estÃ¡ no formato DD/MM/YYYY, converter para YYYY-MM-DD
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
-      const [day, month, year] = dateString.split('/');
-      return `${year}-${month}-${day}`;
-    }
-    return dateString;
-  }
+
 
   /**
    * Atualiza o nome de um item no Monday.com

@@ -6,6 +6,7 @@ import { Subscriber } from '../../src/entities/Subscriber';
 import { MondayBoard } from '../../src/entities/MondayBoard';
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
 import { MondayColumnType, FormSubmissionData } from '../../src/dto/MondayFormMappingDto';
+import { convertDateFormat } from '../../src/utils/dateFormatters';
 
 jest.mock('../../src/services/MondayService');
 jest.mock('../../src/config/database');
@@ -274,17 +275,17 @@ describe('NewCRMService', () => {
 
   describe('convertDateFormat', () => {
     it('should convert YYYY-MM-DD to DD/MM/YYYY', () => {
-      const result = (service as any).convertDateFormat('2024-01-15');
+      const result = convertDateFormat('2024-01-15');
       expect(result).toBe('15/01/2024');
     });
 
     it('should keep DD/MM/YYYY as is', () => {
-      const result = (service as any).convertDateFormat('15/01/2024');
+      const result = convertDateFormat('15/01/2024');
       expect(result).toBe('15/01/2024');
     });
 
     it('should handle invalid formats', () => {
-      const result = (service as any).convertDateFormat('invalid');
+      const result = convertDateFormat('invalid');
       expect(result).toBe('invalid');
     });
   });

@@ -6,6 +6,7 @@ import { MondayItem } from '../../src/entities/MondayItem';
 import { MondayBoard } from '../../src/entities/MondayBoard';
 import { Subscriber } from '../../src/entities/Subscriber';
 import { ChannelSchedule } from '../../src/entities/ChannelSchedule';
+import { convertDateFormat } from '../../src/utils/dateFormatters';
 import fs from 'fs';
 
 // Mock modules
@@ -1228,17 +1229,17 @@ describe('BriefingMateriaisCriativosGamService', () => {
 
   describe('convertDateFormat', () => {
     it('should return date in DD/MM/YYYY format unchanged', () => {
-      const result = (service as any).convertDateFormat('25/12/2024');
+      const result = convertDateFormat('25/12/2024');
       expect(result).toBe('25/12/2024');
     });
 
     it('should convert YYYY-MM-DD to DD/MM/YYYY', () => {
-      const result = (service as any).convertDateFormat('2024-12-25');
+      const result = convertDateFormat('2024-12-25');
       expect(result).toBe('25/12/2024');
     });
 
     it('should handle another ISO date', () => {
-      const result = (service as any).convertDateFormat('2024-03-05');
+      const result = convertDateFormat('2024-03-05');
       expect(result).toBe('05/03/2024');
     });
   });
@@ -3160,7 +3161,7 @@ describe('BriefingMateriaisCriativosGamService', () => {
 
   describe('convertDateFormat - additional coverage', () => {
     it('should return input when not matching any format', () => {
-      const result = (service as any).convertDateFormat('2024/12/31');
+      const result = convertDateFormat('2024/12/31');
 
       expect(result).toBe('2024/12/31');
     });

@@ -16,6 +16,7 @@ import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
+import { convertDateFormat } from '../utils/dateFormatters';
 
 export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionService {
   private readonly channelScheduleService?: ChannelScheduleService;
@@ -798,7 +799,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
 
         // Encontra próximo horário na lista de slots
         const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-        let nextIndex = idx >= 0 ? idx + 1 : 0;
+        const nextIndex = idx >= 0 ? idx + 1 : 0;
         
         // Se não houver próximo horário sequencial, tentar buscar QUALQUER horário disponível no dia
         if (nextIndex >= activeTimeSlots.length) {
@@ -1044,7 +1045,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
     ];
 
     for (const mapping of textMappings) {
-      let lookupValue = formData.data?.[mapping.lookup];
+      const lookupValue = formData.data?.[mapping.lookup];
       if (lookupValue !== undefined && lookupValue !== null) {
         columnValues[mapping.textField] = String(lookupValue);
       }
@@ -1196,7 +1197,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
 
         if (scheduleData.id_canal && scheduleData.data && scheduleData.qtd > 0) {
           // Converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
-          const convertedData = this.convertDateFormat(scheduleData.data);
+          const convertedData = convertDateFormat(scheduleData.data);
           
           await this.channelScheduleService.create({
             id_canal: scheduleData.id_canal,
@@ -1220,20 +1221,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
   /**
    * Converte data de YYYY-MM-DD para DD/MM/YYYY se necessário
    */
-  private convertDateFormat(dateString: string): string {
-    // Se já está no formato DD/MM/YYYY, retorna como está
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
-      return dateString;
-    }
-    
-    // Se está no formato YYYY-MM-DD, converte
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      const [year, month, day] = dateString.split('-');
-      return `${day}/${month}/${year}`;
-    }
-    
-    return dateString;
-  }
+
 
   /**
    * Formata valor baseado no tipo de coluna da Monday.com
