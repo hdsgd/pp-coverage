@@ -8,6 +8,7 @@ import { MondayBoard } from '../entities/MondayBoard';
 import { Subscriber } from '../entities/Subscriber';
 import { MondayService } from './MondayService';
 import { buildSafePath, sanitizeFilename } from '../utils/pathSecurity';
+import { BriefingValidator } from '../utils/briefingValidator';
 
 export abstract class BaseFormSubmissionService {
   protected readonly mondayService: MondayService;
@@ -534,9 +535,12 @@ export abstract class BaseFormSubmissionService {
   protected abstract buildColumnValues(formData: FormSubmissionData, mapping: MondayFormMapping): Promise<Record<string, any>>;
 
   /**
-   * Método abstrato para validações específicas de cada serviço
+   * Valida campos específicos usando BriefingValidator
+   * Pode ser sobrescrito para validações adicionais específicas do serviço
    */
-  protected abstract validateSpecificFields(data: Record<string, any>): void;
+  protected validateSpecificFields(data: Record<string, any>): void {
+    BriefingValidator.validateSpecificFields(data);
+  }
 
   /**
    * Formata valores de STATUS com lógica inteligente:

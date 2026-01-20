@@ -1,7 +1,6 @@
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { Repository } from 'typeorm';
 import { buildSafePath } from '../utils/pathSecurity';
-import { BriefingValidator } from '../utils/briefingValidator';
 import { 
   FormSubmissionData, 
   MondayFormMapping, 
@@ -54,21 +53,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
     super();
     this.channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
   }
-
-  /**
-   * Valida campos condicionais baseados nas regras de negócio do Briefing de Materiais Criativos
-   */
-  protected validateSpecificFields(data: Record<string, any>): void {
-    BriefingValidator.validateSpecificFields(data);
-  }
-
-
-
-
-
-
-
-
 
   /**
    * Processa envio para o board de marketing (seguindo padrão do CRM)

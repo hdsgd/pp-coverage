@@ -3,7 +3,6 @@ import path from 'node:path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { buildSafePath } from '../utils/pathSecurity';
-import { BriefingValidator } from '../utils/briefingValidator';
 import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
   FormSubmissionData,
@@ -55,21 +54,6 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
     super();
     this.channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
   }
-
-  /**
-   * Valida campos condicionais baseados nas regras de negócio do Briefing de Materiais Criativos
-   */
-  protected validateSpecificFields(data: Record<string, any>): void {
-    BriefingValidator.validateSpecificFields(data);
-  }
-
-
-
-
-
-
-
-
 
   /**
    * Processa uma submissão de formulário e cria um item na Monday.com

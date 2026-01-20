@@ -9,7 +9,6 @@ import {
 import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
-import { BriefingValidator } from '../utils/briefingValidator';
 
 export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionService {
   protected readonly mondayItemRepository: Repository<MondayItem>;
@@ -17,35 +16,6 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
   constructor() {
     super();
     this.mondayItemRepository = AppDataSource.getRepository(MondayItem);
-  }
-
-  /**
-   * Valida campos condicionais baseados nas regras de negócio do Briefing de Materiais Criativos
-   */
-  protected validateSpecificFields(data: Record<string, any>): void {
-    const errors: string[] = [];
-
-    // Validação baseada no Tipo de Briefing (após mapeamentos)
-    const briefingType = String(data.sele__o_individual9__1 || data.briefing_type || '').trim().toLowerCase();
-
-    if (briefingType === 'growth/bu/marca' || briefingType === 'growth' || briefingType === 'bu' || briefingType === 'marca') {
-      // Growth/BU/Marca: Todos os campos são obrigatórios
-      BriefingValidator.validateGrowthBUMarcaFields(data, errors);
-    } else if (briefingType === 'conteúdo/redes sociais' || briefingType === 'conteudo' || briefingType === 'redes sociais') {
-      // Conteúdo/Redes Sociais: Campos específicos de conteúdo
-      BriefingValidator.validateConteudoRedesSociaisFields(data, errors);
-    } else if (briefingType === 'validação' || briefingType === 'validacao') {
-      // Validação: Apenas campos básicos + links de validação
-      BriefingValidator.validateValidacaoFields(data, errors);
-    }
-
-    // Validação de Tipo de Entrega: Se selecionado, campos numéricos correspondentes são obrigatórios
-    BriefingValidator.validateTipoEntregaFields(data, errors);
-
-    // Se houver erros, lançar exceção
-    if (errors.length > 0) {
-      throw new Error(`Validação de campos condicionais falhou:\n${errors.join('\n')}`);
-    }
   }
 
   /**

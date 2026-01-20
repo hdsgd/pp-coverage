@@ -101,7 +101,9 @@ describe('Subscriber Entity', () => {
 
     it('should handle email with dots in local part', () => {
       subscriber.email = 'first.last@example.com';
-      expect(subscriber.email).toMatch(/^[^@]*\.[^@]*@[^@]+$/);
+      const [localPart, domain] = subscriber.email.split('@');
+      expect(localPart).toContain('.');
+      expect(domain).toBeTruthy();
     });
 
     it('should handle email with numbers', () => {
