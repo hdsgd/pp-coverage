@@ -866,66 +866,6 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
     return totalJaUsado;
   }
 
-  /** Utilitário: tenta parsear "YYYY-MM-DD" ou "DD/MM/YYYY" para Date */
-  private parseFlexibleDateToDate(value: string): Date | null {
-    const s = String(value).trim();
-    let d: Date | null = null;
-    const iso = /^\d{4}-\d{2}-\d{2}$/;
-    const br = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (iso.test(s)) {
-      const [y, m, dd] = s.split('-').map(Number);
-      d = new Date(y, m - 1, dd);
-    } else if (br.test(s)) {
-      const [dd, mm, y] = s.split('/').map(Number);
-      d = new Date(y, mm - 1, dd);
-    } else {
-      const parsed = new Date(s);
-      d = Number.isNaN(parsed.getTime()) ? null : parsed;
-    }
-    return d && !Number.isNaN(d.getTime()) ? d : null;
-  }
-
-  /** Zera hora/min/seg/ms da data para comparação igual ao tipo date */
-  private truncateDate(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }
-
-  /**
-   * Encontra o subitem com data__1 mais próxima da data atual
-   * @param subitems Array de subitems para analisar
-   * @returns O subitem com data mais próxima, ou null se não encontrar nenhum com data válida
-   */
-  private findClosestSubitemByDate(subitems: SubitemData[]): SubitemData | null {
-    if (!Array.isArray(subitems) || subitems.length === 0) {
-      return null;
-    }
-
-    const today = new Date();
-    let closestSubitem: SubitemData | null = null;
-    let closestDiff = Infinity;
-
-    for (const subitem of subitems) {
-      const dateValue = (subitem as any)['data__1'];
-      if (!dateValue) continue;
-
-      const subitemDate = this.parseFlexibleDateToDate(String(dateValue));
-      if (!subitemDate) continue;
-
-      // Calcular a diferença absoluta em dias entre a data do subitem e hoje
-      const diffMs = Math.abs(subitemDate.getTime() - today.getTime());
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-      if (diffDays < closestDiff) {
-        closestDiff = diffDays;
-        closestSubitem = subitem;
-      }
-    }
-
-    return closestSubitem;
-  }
-
-
-
   /**
    * Constrói o objeto column_values para a mutation da Monday.com
    */

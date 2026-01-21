@@ -146,6 +146,11 @@ export abstract class BaseFormSubmissionService {
       return MondayColumnType.DROPDOWN;
     }
 
+    // Campo text_mkvgjh0w (tipo hour, tratado como texto)
+    if (fieldName === 'text_mkvgjh0w') {
+      return MondayColumnType.TEXT;
+    }
+
     // Campos de conexão entre quadros (pode ser tratado como texto)
     if (fieldName.includes('conectar_quadros')) {
       return MondayColumnType.TEXT;
@@ -161,13 +166,20 @@ export abstract class BaseFormSubmissionService {
   }
 
   /**
-   * Separa colunas que iniciam com "conectar_quadros" das demais
+   * Separa colunas que iniciam com "conectar_quadros" ou link_to_itens_filhos__1 das demais
+   * @param all Todas as colunas
+   * @param excludeColumns Colunas que devem ser excluídas (não tratadas como connect columns)
    */
-  protected splitConnectBoardColumns(all: Record<string, any>): { baseColumns: Record<string, any>; connectColumnsRaw: Record<string, any> } {
+  protected splitConnectBoardColumns(all: Record<string, any>, excludeColumns: string[] = []): { baseColumns: Record<string, any>; connectColumnsRaw: Record<string, any> } {
     const baseColumns: Record<string, any> = {};
     const connectColumnsRaw: Record<string, any> = {};
     for (const [key, val] of Object.entries(all)) {
-      if (key.startsWith('conectar_quadros')) {
+      // Tratar tanto campos conectar_quadros* quanto link_to_itens_filhos__1 como board relations
+      // Excluir colunas que não existem no board de destino (ex: marketing board)
+      const isConnectColumn = key.startsWith('conectar_quadros') || key === 'link_to_itens_filhos__1';
+      const shouldExclude = excludeColumns.includes(key);
+      
+      if (isConnectColumn && !shouldExclude) {
         connectColumnsRaw[key] = val;
       } else {
         baseColumns[key] = val;
@@ -722,5 +734,62 @@ export abstract class BaseFormSubmissionService {
     console.log(`Conexão estabelecida: Board Marketing ${logPrefix}(${marketingItemId}) → Board Principal (${mainBoardItemId})`);
     
     return marketingItemId;
+  }
+
+  /**
+   * Utilitário: tenta parsear "YYYY-MM-DD" ou "DD/MM/YYYY" para Date
+   */
+  protected parseFlexibleDateToDate(value: string): Date | null {
+    const s = String(value).trim();
+    let d: Date | null = null;
+    const iso = /^\d{4}-\d{2}-\d{2}$/;
+    const br = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (iso.test(s)) {
+      const [y, m, dd] = s.split('-').map(Number);
+      d = new Date(y, m - 1, dd);
+    } else if (br.test(s)) {
+      const [dd, mm, y] = s.split('/').map(Number);
+      d = new Date(y, mm - 1, dd);
+    } else {
+      const parsed = new Date(s);
+      d = Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+  }
+
+  /**
+   * Zera hora/min/seg/ms da data para comparação igual ao tipo date
+   */
+  protected truncateDate(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  /**
+   * Encontra o subitem com data__1 mais próxima da data atual
+   */
+  protected findClosestSubitemByDate(subitems: any[]): any | null {
+    if (!subitems || subitems.length === 0) return null;
+    
+    const today = this.truncateDate(new Date());
+    let closest: any | null = null;
+    let minDiff = Infinity;
+    
+    for (const sub of subitems) {
+      const dataStr = sub.data__1;
+      if (!dataStr) continue;
+      
+      const subDate = this.parseFlexibleDateToDate(String(dataStr));
+      if (!subDate) continue;
+      
+      const truncated = this.truncateDate(subDate);
+      const diff = Math.abs(truncated.getTime() - today.getTime());
+      
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = sub;
+      }
+    }
+    
+    return closest;
   }
 }

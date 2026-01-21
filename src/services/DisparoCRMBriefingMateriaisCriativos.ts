@@ -4,7 +4,6 @@ import { buildSafePath } from '../utils/pathSecurity';
 import { 
   FormSubmissionData, 
   MondayFormMapping, 
-  MondayColumnType,
   DISPARO_CRM_BRIEFING_FORM_MAPPING
 } from '../dto/MondayFormMappingDto';
 import { AppDataSource } from '../config/database';
@@ -572,27 +571,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
   }  
 
   /**
-   * Separa colunas que iniciam com "conectar_quadros" das demais
-   */
-  protected splitConnectBoardColumns(all: Record<string, any>, excludeColumns: string[] = []): { baseColumns: Record<string, any>; connectColumnsRaw: Record<string, any> } {
-    const baseColumns: Record<string, any> = {};
-    const connectColumnsRaw: Record<string, any> = {};
-    for (const [key, val] of Object.entries(all)) {
-      // Tratar tanto campos conectar_quadros* quanto link_to_itens_filhos__1 como board relations
-      // Excluir colunas que não existem no board de destino (ex: marketing board)
-      const isConnectColumn = key.startsWith('conectar_quadros') || key === 'link_to_itens_filhos__1';
-      const shouldExclude = excludeColumns.includes(key);
-      
-      if (isConnectColumn && !shouldExclude) {
-        connectColumnsRaw[key] = val;
-      } else {
-        baseColumns[key] = val;
-      }
-    }
-    return { baseColumns, connectColumnsRaw };
-  }
-
-  /**
    * Ajusta os objetos de __SUBITEMS__ respeitando a capacidade disponível por canal/data/hora.
    * - Para cada subitem, calcula available_time = max_value (monday_items) - soma(qtd) (channel_schedules)
    * - Se n_meros_mkkchcmk <= available_time, mantém
@@ -771,64 +749,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
     return totalJaUsado;
   }
 
-  /** Utilitário: tenta parsear "YYYY-MM-DD" ou "DD/MM/YYYY" para Date */
-  private parseFlexibleDateToDate(value: string): Date | null {
-    const s = String(value).trim();
-    let d: Date | null = null;
-    const iso = /^\d{4}-\d{2}-\d{2}$/;
-    const br = /^\d{2}\/\d{2}\/\d{4}$/;
-    if (iso.test(s)) {
-      const [y, m, dd] = s.split('-').map(Number);
-      d = new Date(y, m - 1, dd);
-    } else if (br.test(s)) {
-      const [dd, mm, y] = s.split('/').map(Number);
-      d = new Date(y, mm - 1, dd);
-    } else {
-      const parsed = new Date(s);
-      d = Number.isNaN(parsed.getTime()) ? null : parsed;
-    }
-    return d && !Number.isNaN(d.getTime()) ? d : null;
-  }
-
-  /** Zera hora/min/seg/ms da data para comparação igual ao tipo date */
-  private truncateDate(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }
-
-  /**
-   * Encontra o subitem com data__1 mais próxima da data atual
-   * @param subitems Array de subitems para analisar
-   * @returns O subitem com data mais próxima, ou null se não encontrar nenhum com data válida
-   */
-  private findClosestSubitemByDate(subitems: SubitemData[]): SubitemData | null {
-    if (!Array.isArray(subitems) || subitems.length === 0) {
-      return null;
-    }
-
-    const today = new Date();
-    let closestSubitem: SubitemData | null = null;
-    let closestDiff = Infinity;
-
-    for (const subitem of subitems) {
-      const dateValue = (subitem as any)['data__1'];
-      if (!dateValue) continue;
-
-      const subitemDate = this.parseFlexibleDateToDate(String(dateValue));
-      if (!subitemDate) continue;
-
-      // Calcular a diferença absoluta em dias entre a data do subitem e hoje
-      const diffMs = Math.abs(subitemDate.getTime() - today.getTime());
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-      if (diffDays < closestDiff) {
-        closestDiff = diffDays;
-        closestSubitem = subitem;
-      }
-    }
-
-    return closestSubitem;
-  }
-
   /**
    * Constrói o objeto column_values para a mutation da Monday.com
    */
@@ -975,47 +895,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
   }
 
   /**
-   * Determina o tipo de coluna baseado no nome do campo
-   */
-  protected getColumnType(fieldName: string): MondayColumnType {
-    // Campos de data
-    if (fieldName.includes('data__') || fieldName.startsWith('date_')) {
-      return MondayColumnType.DATE;
-    }
-
-    // Campos numéricos
-    if (fieldName.includes('n_mero') || fieldName.includes('n_meros')) {
-      return MondayColumnType.NUMBER;
-    }
-
-    // Campos de data
-    if (fieldName.includes('data__') || fieldName.startsWith('date_')) { /* ...existing code... */ }
-
-    // Campos numéricos
-    if (fieldName.includes('n_mero') || fieldName.includes('n_meros')) { /* ...existing code... */ }
-
-    // Campos de pessoas
-    if (fieldName.includes('pessoas')) { /* ...existing code... */ }
-
-    // Campos de lista suspensa (dropdown)
-    if (fieldName.includes('lista_suspensa')) { /* ...existing code... */ }
-
-    // Campo text_mkvgjh0w (tipo hour, tratado como texto)
-    if (fieldName === 'text_mkvgjh0w') {
-      return MondayColumnType.TEXT;
-    }
-
-    // Campos de conexão entre quadros (pode ser tratado como texto)
-    if (fieldName.includes('conectar_quadros')) { /* ...existing code... */ }
-
-    // Campos de lookup (texto)
-    if (fieldName.includes('lookup_')) { /* ...existing code... */ }
-
-    // Campos de texto por padrão
-    return MondayColumnType.TEXT;
-  }
-
-  /**
    * Insere dados dos subitems na tabela channel_schedules
    * @param subitems Array de subitems com dados de canal/data/hora
    * @param formData Dados completos do formulário para extrair area_solicitante e user_id
@@ -1078,123 +957,6 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
    * Converte data de YYYY-MM-DD para DD/MM/YYYY se necessário
    */
 
-
-  /**
-   * Formata valor baseado no tipo de coluna da Monday.com
-   */
-  protected formatValueForMondayColumn(value: any, columnType: MondayColumnType): any {
-    if (value === null || value === undefined) {
-      return undefined;
-    }
-
-    switch (columnType) {
-      case MondayColumnType.TEXT:
-        return String(value);
-
-      case MondayColumnType.DATE:
-        return this.formatDateValue(value);
-
-      case MondayColumnType.NUMBER: {
-        const num = Number(value);
-        return Number.isNaN(num) ? undefined : num;
-      }
-
-      case MondayColumnType.STATUS:
-        return this.formatStatusValue(value);
-
-      case MondayColumnType.CHECKBOX:
-        return { checked: Boolean(value) };
-
-      case MondayColumnType.PEOPLE:
-        // Para campos de pessoas, o valor deve ser um array de IDs ou nomes
-        if (Array.isArray(value)) {
-          return { personsAndTeams: value.map(person => ({ id: String(person), kind: 'person' as const })) };
-        } else if (typeof value === 'string') {
-          // Se for um nome, retorna como está (Monday tentará resolver)
-          return { personsAndTeams: [{ id: value, kind: 'person' }] };
-        } else if (value && typeof value === 'object') {
-          const v: any = value;
-          if (Array.isArray(v.personsAndTeams)) {
-            const teams = v.personsAndTeams.map((p: any) => ({ id: String(p.id), kind: 'person' as const }));
-            return { personsAndTeams: teams };
-          }
-        }
-        return undefined;
-
-      case MondayColumnType.DROPDOWN:
-        return this.formatDropdownValue(value);
-
-      case MondayColumnType.TAGS:
-        return this.formatTagsValue(value);
-
-      case MondayColumnType.BOARD_RELATION:
-        return this.formatBoardRelationValue(value);
-
-      default:
-        return String(value);
-    }
-  }
-
-  /**
-   * Formata valores de data para Monday.com
-   */
-  protected formatDateValue(value: any): any {
-    if (typeof value === 'string') {
-      // Converter de DD/MM/YYYY para YYYY-MM-DD se necessário
-      const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-      const dateMatch = dateRegex.exec(value);
-      if (dateMatch) {
-        const [, day, month, year] = dateMatch;
-        return { date: `${year}-${month}-${day}` };
-      }
-      // Se já está no formato YYYY-MM-DD
-      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (isoDateRegex.test(value)) {
-        return { date: value };
-      }
-    }
-    return { date: value };
-  }
-
-  /**
-   * Formata valores de tags para Monday.com
-   */
-  protected formatTagsValue(value: any): any {
-    if (Array.isArray(value)) {
-      return { tag_ids: value };
-    }
-    return { tag_ids: [value] };
-  }
-
-  /**
-   * Formata valores de board relation para Monday.com
-   */
-  protected formatBoardRelationValue(value: any): any {
-    if (!value) return undefined;
-    
-    // Se já é um objeto com item_ids, retorna como está
-    if (typeof value === 'object' && Array.isArray(value.item_ids)) {
-      return { item_ids: value.item_ids.map((id: any) => Number.parseInt(String(id), 10)) };
-    }
-    
-    // Se é uma string ou número (ID do item), retorna como array
-    if (typeof value === 'string' || typeof value === 'number') {
-      const itemId = Number.parseInt(String(value), 10);
-      if (!Number.isNaN(itemId)) {
-        return { item_ids: [itemId] };
-      }
-    }
-    
-    // Se é um array, assume que são IDs de item
-    if (Array.isArray(value)) {
-      const itemIds = value.map(id => Number.parseInt(String(id), 10)).filter(id => !Number.isNaN(id));
-      if (itemIds.length > 0) {
-        return { item_ids: itemIds };
-      }
-    }
-    
-    return undefined;
-  }
 
   /**
    * Monta valor para coluna People a partir de monday_items.team (Times)

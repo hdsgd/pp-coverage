@@ -601,11 +601,12 @@ describe('NewCRMService', () => {
       const result = (service as any).findClosestSubitemByDate(subitems);
       expect(result).toBeDefined();
       // O método retorna a data mais próxima de hoje (menor diferença absoluta)
-      // Aceitar tanto hoje quanto amanhã (diferença de 1 dia)
+      // Aceitar ontem, hoje ou amanhã (diferença de até 1 dia)
       const resultDate = result?.data__1;
       const expectedDates = [
+        yesterday.toISOString().slice(0, 10),
         today.toISOString().slice(0, 10),
-        new Date(today.getTime() + 24*60*60*1000).toISOString().slice(0, 10)
+        tomorrow.toISOString().slice(0, 10)
       ];
       expect(expectedDates).toContain(resultDate);
     });

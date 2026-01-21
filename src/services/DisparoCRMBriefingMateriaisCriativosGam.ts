@@ -1058,7 +1058,24 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
     }
   }
 
-  /** Utilitário: tenta parsear "YYYY-MM-DD" ou "DD/MM/YYYY" para Date */
+  /**
+   * Extrai o nome do item baseado na configuração de mapeamento
+   */
+  private extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
+    if (mapping.item_name_field) {
+      const name = getValueByPath(formData, mapping.item_name_field);
+      if (name && typeof name === 'string') {
+        return name;
+      }
+    }
+
+    // Fallback para nome padrão
+    return mapping.default_item_name || `Formulário ${formData.id}`;
+  }
+
+  /**
+   * Utilitário: tenta parsear "YYYY-MM-DD" ou "DD/MM/YYYY" para Date
+   */
   private parseFlexibleDateToDate(value: string): Date | null {
     const s = String(value).trim();
     let d: Date | null = null;
@@ -1077,15 +1094,15 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
     return d && !Number.isNaN(d.getTime()) ? d : null;
   }
 
-  /** Zera hora/min/seg/ms da data para comparação igual ao tipo date */
+  /**
+   * Zera hora/min/seg/ms da data para comparação igual ao tipo date
+   */
   private truncateDate(d: Date): Date {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
 
   /**
    * Encontra o subitem com data__1 mais próxima da data atual
-   * @param subitems Array de subitems para analisar
-   * @returns O subitem com data mais próxima, ou null se não encontrar nenhum com data válida
    */
   private findClosestSubitemByDate(subitems: SubitemData[]): SubitemData | null {
     if (!Array.isArray(subitems) || subitems.length === 0) {
@@ -1114,21 +1131,6 @@ export class DisparoCRMBriefingMateriaisCriativosGamService {
     }
 
     return closestSubitem;
-  }
-
-  /**
-   * Extrai o nome do item baseado na configuração de mapeamento
-   */
-  private extractItemName(formData: FormSubmissionData, mapping: MondayFormMapping): string {
-    if (mapping.item_name_field) {
-      const name = getValueByPath(formData, mapping.item_name_field);
-      if (name && typeof name === 'string') {
-        return name;
-      }
-    }
-
-    // Fallback para nome padrão
-    return mapping.default_item_name || `Formulário ${formData.id}`;
   }
 
   /**
