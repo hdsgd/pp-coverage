@@ -24,7 +24,7 @@ describe('NewCampaignGAMService', () => {
     mockMondayService = new MondayService() as jest.Mocked<MondayService>;
     mockSubscriberRepository = {
       findOne: jest.fn(),
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]), // Mock padrão: retorna array vazio
       save: jest.fn(),
       create: jest.fn(),
     } as any;
@@ -2427,6 +2427,13 @@ describe('NewCampaignGAMService', () => {
     });
 
     it('should handle buildPeopleFromLookupObjetivo with error (line 481-482)', async () => {
+      // Mockar item encontrado mas com team vazio para chegar ao código de subscriber
+      mockMondayItemRepository.findOne.mockResolvedValue({
+        id: '1',
+        name: '123',
+        team: []
+      } as any);
+      
       mockSubscriberRepository.find.mockRejectedValue(new Error('DB Error'));
 
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
@@ -2464,24 +2471,44 @@ describe('NewCampaignGAMService', () => {
     it('should handle validateAndAdjustSubitems with capacity exceeded (line 587-594)', async () => {
       const mockSubitems = [
         {
+          id: 'channel1',
           conectar_quadros_mkkcjhuc: 'channel1',
+          data__1: '2024-12-15',
           conectar_quadros_mkkbt3fq: '2024-12-15',
           conectar_quadros_mkkcnyr3: '23:00',
           n_meros_mkkchcmk: 1000
         }
       ];
 
-      const mockTimeSlots = [{ name: '23:00' }];
+      // Mockar horários ativos (só 23:00 disponível)
+      mockMondayItemRepository.find.mockImplementation(((options: any) => {
+        if (options?.where?.board_id === 'f0dec33d-a127-4923-8110-ebe741ce946b') {
+          return Promise.resolve([{ name: '23:00', status: 'Ativo' }] as any);
+        }
+        return Promise.resolve([] as any);
+      }) as any);
 
-      mockChannelScheduleRepository.createQueryBuilder = jest.fn().mockReturnValue({
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([{ quantity: 500 }])
+      // Mockar findOne para retornar o canal
+      mockMondayItemRepository.findOne.mockImplementation((options: any) => {
+        if (options?.where?.item_id === 'channel1') {
+          return Promise.resolve({ item_id: 'channel1', max_value: 500 } as any);
+        }
+        return Promise.resolve(null);
       });
+
+      // Mockar channelScheduleRepository.find para retornar array vazio (sem agendamentos)
+      mockChannelScheduleRepository.find.mockResolvedValue([]);
 
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
 
-      await (service as any).validateAndAdjustSubitems(mockSubitems, mockTimeSlots, 100, 'Test Area');
+      const formData = {
+        id: 'test',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { gam_requesting_area: 'Test Area' }
+      };
+
+      await (service as any).adjustSubitemsCapacity(mockSubitems, formData, 'f0dec33d-a127-4923-8110-ebe741ce946b');
 
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();

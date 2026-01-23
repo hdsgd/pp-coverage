@@ -1,5 +1,4 @@
-import { DataSource, Repository } from 'typeorm';
-import { AppDataSource } from '../config/database';
+import { DataSource } from 'typeorm';
 import { BoardIds } from '../config/boardIds';
 import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
@@ -8,7 +7,6 @@ import {
   MondayColumnType,
   MondayFormMapping
 } from '../dto/MondayFormMappingDto';
-import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
@@ -17,8 +15,6 @@ import { ChannelScheduleService } from './ChannelScheduleService';
 import { convertDateFormat, toYYYYMMDD } from '../utils/dateFormatters';
 
 export class NewCRMService extends BaseFormSubmissionService {
-  private readonly channelScheduleService?: ChannelScheduleService;
-  private readonly channelScheduleRepository: Repository<ChannelSchedule>;
   // Novo: Correlações para preencher o segundo board
   // 1) Correlação entre chaves do formulário (após tratamento) e chaves do objeto do segundo envio
   // Preenchidas com strings vazias para edição manual conforme solicitado
@@ -39,7 +35,6 @@ export class NewCRMService extends BaseFormSubmissionService {
 
   constructor(dataSource?: DataSource) {
     super();
-    this.channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
     if (dataSource) {
       this.channelScheduleService = new ChannelScheduleService(dataSource);
     }

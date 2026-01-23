@@ -1,22 +1,16 @@
-import { Repository } from 'typeorm';
-import { AppDataSource } from '../config/database';
 import { 
   BRIEFING_MATERIAIS_CRIATIVOS_FORM_MAPPING,
   FormSubmissionData, 
   MondayFormMapping 
 } from '../dto/MondayFormMappingDto';
-import { MondayItem } from '../entities/MondayItem';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
-import { toYYYYMMDD } from '../utils/dateFormatters';
+
 
 export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionService {
-  protected readonly mondayItemRepository: Repository<MondayItem>;
-
   constructor() {
     super();
-    this.mondayItemRepository = AppDataSource.getRepository(MondayItem);
   }
 
   /**
@@ -215,79 +209,6 @@ export class NewBriefingMateriaisCriativosService extends BaseFormSubmissionServ
     return columnValues;
   }
 
-  /**
-   * Constrói o valor do campo text_mkr3znn0 conforme regra:
-   * {Data do Disparo Texto} - id-<itemId> - lookup_mkrtaebd - lookup_mkrt66aq - lookup_mkrtxa46 -
-   * lookup_mkrta7z1 - lookup_mkrt36cj - lookup_mkrtwq7k - lookup_mkrtvsdj - lookup_mkrtcctn - name
-   */
-  private async buildCompositeTextField(formData: FormSubmissionData, itemId?: string): Promise<string> {
-    const d = formData?.data ?? {};
-    
-    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
-    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
-    
-    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
-    
-    // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
-    const idPart = itemId ? `id-${itemId}` : "";
 
-    // Campos lookup na ordem requerida. Para cada um, buscar em monday_items por name e usar o code
-    const lookupFields = [
-      "lookup_mkrtaebd",
-      "lookup_mkrt66aq",
-      "lookup_mkrtxa46",
-      "lookup_mkrta7z1",
-      "lookup_mkrt36cj",
-      "lookup_mkrtwq7k",
-      "lookup_mkrtvsdj",
-      "lookup_mkrtcctn",
-    ] as const;
-
-    const codes: string[] = [];
-    for (const field of lookupFields) {
-      const nameVal = String(d[field] ?? "").trim();
-      if (!nameVal) {
-        // Manter posição vazia para preservar a estrutura da taxonomia
-        codes.push("");
-        continue;
-      }
-      try {
-        const code = await this.getCodeByItemName(nameVal);
-        codes.push(code ?? nameVal);
-      } catch {
-        codes.push(nameVal);
-      }
-    }
-
-    const tailName = String(d["name"] ?? "").trim();
-
-    // Não remover campos vazios para manter as posições fixas na taxonomia
-    const parts = [
-      yyyymmdd,
-      idPart,
-      ...codes,
-      tailName,
-    ];
-
-    return parts.join("-");
-  }
-
-  /** Busca o "code" do monday_items a partir do valor do campo name, com filtro por board_id para evitar colisão */
-  protected async getCodeByItemName(name: string, boardId?: string): Promise<string | undefined> {
-    const s = String(name || '').trim();
-    if (!s) return undefined;
-    try {
-      const whereCondition: any = { name: s };
-      if (boardId) {
-        whereCondition.board_id = boardId;
-      }
-      const item = await this.mondayItemRepository.findOne({ where: whereCondition });
-      return item?.code ?? undefined;
-    } catch (e) {
-      console.warn('Falha ao obter code por name em monday_items:', e);
-      return undefined;
-    }
-  }
 
 }

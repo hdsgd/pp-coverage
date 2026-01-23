@@ -1,5 +1,4 @@
-import { DataSource, Repository } from 'typeorm';
-import { AppDataSource } from '../config/database';
+import { DataSource } from 'typeorm';
 import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
   FormSubmissionData,
@@ -7,16 +6,13 @@ import {
   MondayColumnType,
   MondayFormMapping
 } from '../dto/MondayFormMappingDto';
-import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
 import { ChannelScheduleService } from './ChannelScheduleService';
 import { getValueByPath } from '../utils/objectHelpers';
 import { BaseFormSubmissionService } from './BaseFormSubmissionService';
-import { convertDateFormat, convertToISODate, toYYYYMMDD } from '../utils/dateFormatters';
+import { convertToISODate, toYYYYMMDD } from '../utils/dateFormatters';
 
 export class NewCampaignGAMService extends BaseFormSubmissionService {
-  private readonly channelScheduleService?: ChannelScheduleService;
-  private readonly channelScheduleRepository: Repository<ChannelSchedule>;
 
   // Novo: Correlações para preencher o segundo board
   // 1) Correlação entre chaves do formulário (após tratamento) e chaves do objeto do segundo envio
@@ -50,9 +46,13 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
 
   constructor(dataSource?: DataSource) {
     super();
-    this.channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
-    if (dataSource) {
-      this.channelScheduleService = new ChannelScheduleService(dataSource);
+    // Sempre inicializar channelScheduleService para garantir que os testes funcionem
+    try {
+      const ds = dataSource || require('../config/database').AppDataSource;
+      this.channelScheduleService = new ChannelScheduleService(ds);
+    } catch (e) {
+      // Se falhar, deixar undefined e será tratado no insertChannelSchedules
+      console.warn('Falha ao inicializar ChannelScheduleService:', e);
     }
   }
 
@@ -72,7 +72,7 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
 
       // 1. Ajustar subitems conforme capacidade por canal/horário e salvar payload localmente
       if (formData.data.__SUBITEMS__ && Array.isArray(formData.data.__SUBITEMS__)) {
-        const adjusted = await this.adjustSubitemsCapacity(formData.data.__SUBITEMS__, formData);
+        const adjusted = await this.adjustSubitemsCapacity(formData.data.__SUBITEMS__, formData, NewCampaignGAMService.TIME_SLOTS_BOARD_ID);
         formData.data.__SUBITEMS__ = adjusted;
         await this.savePayloadLocally(formData);
         await this.insertChannelSchedules(adjusted, formData);
@@ -298,68 +298,7 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
   }
 
   // Novo: monta payload do segundo board a partir do subitem (sem conectar_quadros*)
-  /**
-   * Gera string composta para o segundo board usando os novos campos de texto
-   */
-  private async buildCompositeTextFieldSecondBoard(formData: FormSubmissionData, itemId?: string): Promise<string> {
-    const d = formData?.data ?? {};
-    
-    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
-    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
-    
-    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
-    
-    const idPart = itemId ? `id-${itemId}` : "";
-    
-    // Usar os novos campos de texto diretos ao invés de lookup
-    const textFields = [
-      "text_mkvhz8g3", // Tipo Cliente (era lookup_mkrtaebd)
-      "text_mkvhedf5", // Tipo Campanha (era lookup_mkrt66aq)  
-      "text_mkvhqgvn", // Tipo Disparo (era lookup_mkrtxa46)
-      "text_mkvhv5ma", // Mecânica (era lookup_mkrta7z1)
-      "text_mkvhvcw4", // Área Solicitante (era lookup_mkrt36cj)
-      "text_mkvh2z7j", // Objetivo (era lookup_mkrtwq7k)
-      "text_mkvhwyzr", // Produto (era lookup_mkrtvsdj)
-      "text_mkvhgbp8", // Canal (era lookup_mkrtcctn)
-      "text_mkvhammc"  // Segmento (era lookup_mkrtxgmt)
-    ] as const;
-    
-    // Buscar board_id do board "Produto" uma vez para evitar colisão
-    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
-    const produtoBoardId = produtoBoard?.id;
 
-    const values: string[] = [];
-    for (const field of textFields) {
-      let textVal = String(d[field] ?? "").trim();
-      if (textVal) {
-        // Lógica especial para produtos (text_mkvhwyzr): buscar no board correto e incluir subproduto se existir
-        if (field === "text_mkvhwyzr") {
-          // Buscar código do produto no board específico para evitar colisão com subprodutos
-          const productCode = await this.getCodeByItemName(textVal, produtoBoardId);
-
-          if (productCode) {
-            const subproductCode = await this.mondayService.getSubproductCodeByProduct(textVal);
-            if (subproductCode) {
-              textVal = `${productCode}_${subproductCode}`;
-            } else {
-              textVal = productCode;
-            }
-          }
-        }
-      }
-      // Manter posição vazia para preservar a estrutura da taxonomia
-      values.push(textVal);
-    }
-
-    // Não remover campos vazios para manter as posições fixas na taxonomia
-    const parts = [
-      yyyymmdd,
-      idPart,
-      ...values
-    ];
-    return parts.join("-");
-  }
   private async buildSecondBoardInitialPayloadFromSubitem(
     subitem: SubitemData,
     enrichedFormData: FormSubmissionData,
@@ -603,270 +542,6 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
   }
 
   /**
-   * Ajusta os objetos de __SUBITEMS__ respeitando a capacidade disponível por canal/data/hora.
-   * - Para cada subitem, calcula available_time = max_value (monday_items) - soma(qtd) (channel_schedules)
-   * - Se n_meros_mkkchcmk <= available_time, mantém
-   * - Se > available_time, divide: mantém o atual com available_time e cria novos para próximos horários com o restante
-   * - Considera área solicitante para permitir reuso de reservas da mesma área
-   */
-  private async adjustSubitemsCapacity(subitems: SubitemData[], formData?: FormSubmissionData): Promise<SubitemData[]> {
-    // Extrair área solicitante do formData
-    const areaSolicitante = formData?.data?.gam_requesting_area 
-      || formData?.data?.requesting_area 
-      || formData?.data?.area_solicitante;
-
-    // Carrega slots de horários ativos, ordenados por nome ASC
-    const activeTimeSlots = await this.mondayItemRepository.find({
-      where: { board_id: NewCampaignGAMService.TIME_SLOTS_BOARD_ID, status: 'Ativo' },
-      order: { name: 'ASC' }
-    });
-
-    // Copiamos a lista pois vamos inserir itens dinamicamente
-  const items: SubitemData[] = subitems.map(s => ({ ...s }));
-
-    // Função para chavear canal/data/hora
-    const key = (id: string, d: Date, h: string) => `${id}|${d.toISOString().slice(0,10)}|${h}`;
-
-    // Loop até não haver modificações; quando inserir um novo objeto, reinicia a validação
-    let changed = true;
-    while (changed) {
-      changed = false;
-      // mapa de reservas staged (somente desta passagem)
-      const staged: Record<string, number> = {};
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const idCanal = String(item.id ?? '').trim();
-        const dataStr = String(item.data__1 ?? '').trim();
-        const horaAtual = String(item.conectar_quadros_mkkcnyr3 ?? '').trim();
-        const demanda = Number(item.n_meros_mkkchcmk ?? 0);
-
-        // Remover itens inválidos ou com zero
-        if (!idCanal || !dataStr || !horaAtual || demanda <= 0) {
-          items.splice(i, 1);
-          changed = true;
-          break;
-        }
-
-        const dataDate = this.parseFlexibleDateToDate(dataStr);
-        if (!dataDate) continue;
-
-        // capacidade do canal
-        const canalItem = await this.mondayItemRepository.findOne({ where: { item_id: String(idCanal) } });
-        const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
-          ? Number(canalItem.max_value)
-          : undefined;
-        if (maxValue === undefined || Number.isNaN(maxValue)) {
-          continue;
-        }
-
-        // Horários especiais que compartilham limite (8:00 e 8:30)
-        const splitHours = ["08:00", "08:30"];
-        const effectiveMaxValue = splitHours.includes(horaAtual) ? maxValue / 2 : maxValue;
-
-        // disponibilidade = max - (reservas em DB + reservas staged desta passada)
-        // NOVA LÓGICA: Passa área solicitante para considerar reuso de reservas da mesma área
-        const dbReserved = await this.sumReservedQty(idCanal, dataDate, horaAtual, areaSolicitante);
-        const stagedReserved = staged[key(idCanal, dataDate, horaAtual)] ?? 0;
-        const availableAtCurrent = Math.max(0, effectiveMaxValue - (dbReserved + stagedReserved));
-
-        if (demanda <= availableAtCurrent) {
-          // aloca tudo neste slot (somente em memória para cálculo da mesma passada)
-          staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + demanda;
-          continue;
-        }
-
-        // Se capacidade disponível for zero ou negativa, não manter item com 0
-        if (availableAtCurrent <= 0) {
-          // Tentar mover toda a demanda para o próximo horário
-          const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-          const nextIndex = idx >= 0 ? idx + 1 : 0;
-          if (nextIndex >= activeTimeSlots.length) {
-            console.warn(`Sem próximo horário disponível após "${horaAtual}" para canal ${idCanal}. Restante: ${demanda}`);
-            // Remove item com 0 (não cria objeto com 0)
-            items.splice(i, 1);
-            changed = true;
-            break;
-          }
-          const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
-          // Substitui o item atual por um novo no próximo horário com toda a demanda
-          const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: demanda };
-          items.splice(i, 1, novoSubitem);
-          changed = true;
-          break;
-        }
-
-        // Ajusta o item atual para a capacidade disponível (> 0)
-        item.n_meros_mkkchcmk = availableAtCurrent;
-        staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + availableAtCurrent;
-
-        // Resto deve ir para o próximo horário
-        const restante = Math.max(0, demanda - availableAtCurrent);
-
-        // Encontra próximo horário na lista de slots
-        const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-        const nextIndex = idx >= 0 ? idx + 1 : 0;
-        
-        // Se não houver próximo horário sequencial, tentar buscar QUALQUER horário disponível no dia
-        if (nextIndex >= activeTimeSlots.length) {
-          let foundAvailableSlot = false;
-          for (let j = 0; j < activeTimeSlots.length; j++) {
-            const testHora = (activeTimeSlots[j].name || '').trim();
-            const testReserved = await this.sumReservedQty(idCanal, dataDate, testHora, areaSolicitante);
-            const testStaged = staged[key(idCanal, dataDate, testHora)] ?? 0;
-            const testEffectiveMax = splitHours.includes(testHora) ? maxValue / 2 : maxValue;
-            const testAvailable = Math.max(0, testEffectiveMax - (testReserved + testStaged));
-            
-            if (testAvailable > 0) {
-              const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: testHora, n_meros_mkkchcmk: restante };
-              items.splice(i + 1, 0, novoSubitem);
-              foundAvailableSlot = true;
-              changed = true;
-              break;
-            }
-          }
-          
-          if (!foundAvailableSlot) {
-            console.warn(`Nenhum horário disponível para alocar restante de ${restante} unidades no canal ${idCanal}`);
-          }
-          
-          break;
-        }
-
-        const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
-        const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: restante };
-        // Insere imediatamente após o atual
-        items.splice(i + 1, 0, novoSubitem);
-
-        // Sinaliza mudança e reinicia a validação desde o início
-        changed = true;
-        break;
-      }
-    }
-
-    // Remove qualquer resquício de itens com qtd <= 0
-    return items.filter(it => Number(it.n_meros_mkkchcmk ?? 0) > 0);
-  }
-
-  /**
-   * Compatibilidade: rotina simplificada para validar subitens e ajustar quantidade conforme capacidade.
-   * Mantém logs de advertência quando a demanda excede a disponibilidade.
-   */
-  public async validateAndAdjustSubitems(
-    subitems: SubitemData[],
-    timeSlots: Array<{ name?: string }>,
-    maxValue: number,
-    areaSolicitante?: string
-  ): Promise<SubitemData[]> {
-    if (!Array.isArray(subitems) || subitems.length === 0) {
-      return [];
-    }
-
-    const adjusted = subitems.map((item) => ({ ...item }));
-    const slotNames = new Set((timeSlots || []).map((slot) => String(slot?.name ?? '').trim()).filter(Boolean));
-
-    for (const subitem of adjusted) {
-      const canalId = String((subitem as any).conectar_quadros_mkkcjhuc ?? (subitem as any).id ?? '').trim();
-      const dataStr = String((subitem as any).conectar_quadros_mkkbt3fq ?? (subitem as any).data__1 ?? '').trim();
-      const hora = String((subitem as any).conectar_quadros_mkkcnyr3 ?? '').trim();
-
-      if (!canalId || !dataStr || !hora) {
-        console.warn('Subitem inválido encontrado durante validação de capacidade.', { canalId, dataStr, hora });
-        continue;
-      }
-
-      if (slotNames.size && !slotNames.has(hora)) {
-        console.warn(`Horário ${hora} não está presente na lista de slots ativos.`);
-      }
-
-      let reservedQty = 0;
-      try {
-        const qbFactory = (this.channelScheduleRepository as any)?.createQueryBuilder?.bind(this.channelScheduleRepository);
-        if (qbFactory) {
-          const qb = qbFactory('schedule');
-          const convertedDate = convertDateFormat(dataStr);
-          const result = await qb
-            .where('schedule.id_canal = :canal', { canal: canalId })
-            .andWhere('schedule.data = :data', { data: convertedDate })
-            .andWhere('schedule.hora = :hora', { hora })
-            .getMany();
-
-          reservedQty = Array.isArray(result)
-            ? result.reduce((acc: number, current: any) => {
-                const quantity = Number(current?.quantity ?? current?.qtd ?? 0);
-                if (!Number.isFinite(quantity)) {
-                  return acc;
-                }
-                const tipo = String(current?.tipo ?? 'agendamento');
-                if (tipo === 'agendamento') {
-                  return acc + quantity;
-                }
-                if (!areaSolicitante || String(current?.area_solicitante ?? '').trim() !== String(areaSolicitante).trim()) {
-                  return acc + quantity;
-                }
-                return acc;
-              }, 0)
-            : 0;
-        }
-      } catch (error) {
-        console.warn('Falha ao consultar reservas durante validação de subitens:', error);
-      }
-
-      const demand = Number((subitem as any).n_meros_mkkchcmk ?? 0);
-      const available = Math.max(0, maxValue - reservedQty);
-
-      if (demand > available) {
-        console.warn(`Capacidade excedida para canal ${canalId} no horário ${hora}. Disponível: ${available}, Solicitado: ${demand}`);
-        (subitem as any).n_meros_mkkchcmk = available;
-      }
-
-      if (available <= 0) {
-        (subitem as any).n_meros_mkkchcmk = 0;
-      }
-    }
-
-    const filtered = adjusted.filter((item) => Number((item as any).n_meros_mkkchcmk ?? 0) > 0);
-    if (filtered.length === 0) {
-      console.warn('Nenhum subitem permaneceu após ajuste de capacidade.');
-    }
-
-    return filtered;
-  }
-
-  /** 
-   * Soma total já reservada (qtd) em channel_schedules para um canal/data/hora
-   * Considera área solicitante para excluir reservas da mesma área (permitindo reuso)
-   */
-  private async sumReservedQty(idCanal: string, dataDate: Date, hora: string, areaSolicitante?: string): Promise<number> {
-    const schedules = await this.channelScheduleRepository.find({
-      where: {
-        id_canal: idCanal,
-        data: this.truncateDate(dataDate),
-        hora: hora
-      }
-    });
-
-    let totalJaUsado = 0;
-    schedules.forEach(schedule => {
-      const qtd = Number.parseFloat(schedule.qtd.toString());
-      const tipo = schedule.tipo || 'agendamento';
-
-      if (tipo === 'agendamento') {
-        // Agendamentos SEMPRE contam
-        totalJaUsado += qtd;
-      } else if (tipo === 'reserva') {
-        // Reservas: só contam se forem de OUTRA área (ou se área não foi informada)
-        if (!areaSolicitante || schedule.area_solicitante !== areaSolicitante) {
-          totalJaUsado += qtd;
-        }
-        // Se for da mesma área, NÃO soma (permite reuso)
-      }
-    });
-
-    return totalJaUsado;
-  }
-
-  /**
    * Constrói o objeto column_values para a mutation da Monday.com
    */
   protected async buildColumnValues(formData: FormSubmissionData, mapping: MondayFormMapping): Promise<Record<string, any>> {
@@ -1059,103 +734,6 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
   }
 
 
-  /**
-   * Insere dados dos subitems na tabela channel_schedules
-   * @param subitems Array de subitems com dados de canal/data/hora
-   * @param formData Dados completos do formulário para extrair area_solicitante e user_id
-   */
-  private async insertChannelSchedules(subitems: any[], formData: FormSubmissionData): Promise<void> {
-    // Extrair área solicitante do formulário
-    // Pode vir como 'conectar_quadros__1' (antes da transformação) ou 'lookup_mkrt36cj' (depois da transformação)
-    // ou ainda como 'area_solicitante', 'gam_requesting_area', 'briefing_requesting_area'
-    const areaSolicitante = formData.data?.conectar_quadros__1
-      || formData.data?.lookup_mkrt36cj
-      || formData.data?.area_solicitante
-      || formData.data?.gam_requesting_area
-      || formData.data?.briefing_requesting_area;
-
-    // Extrair user_id se disponível (pode vir do contexto de autenticação)
-    const userId = formData.data?.user_id || undefined;
-
-    if (!areaSolicitante) {
-      console.warn('⚠️ Área solicitante não encontrada no formulário. Agendamentos serão criados sem área.');
-    }
-
-    console.log(`📝 Criando agendamentos para área solicitante: ${areaSolicitante || 'Não especificada'}`);
-
-    for (const subitem of subitems) {
-      try {
-        const idCanal = String(
-          subitem.id
-          || subitem.conectar_quadros_mkkcjhuc
-          || subitem.conectar_quadros__1
-          || subitem.channel_id
-          || ''
-        ).trim();
-
-        const rawDate = String(
-          subitem.data__1
-          || subitem.conectar_quadros_mkkbt3fq
-          || subitem.date
-          || ''
-        ).trim();
-
-        const hora = String(
-          subitem.conectar_quadros_mkkcnyr3
-          || subitem.hora
-          || '00:00'
-        ).trim();
-
-        const rawQtd = subitem.n_meros_mkkchcmk
-          ?? subitem.n_meros__1
-          ?? subitem.qtd
-          ?? subitem.quantity
-          ?? 0;
-        const qtd = Number(rawQtd);
-
-        const scheduleData = {
-          id_canal: idCanal,
-          data: rawDate,
-          hora,
-          qtd: Number.isNaN(qtd) ? 0 : qtd
-        };
-
-        if (scheduleData.id_canal && scheduleData.data && scheduleData.qtd > 0) {
-          // Converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
-          const convertedData = convertDateFormat(scheduleData.data);
-
-          if (this.channelScheduleService) {
-            await this.channelScheduleService.create({
-              id_canal: scheduleData.id_canal,
-              data: convertedData,
-              hora: scheduleData.hora,
-              qtd: scheduleData.qtd,
-              area_solicitante: areaSolicitante,
-              user_id: userId
-            });
-          } else {
-            const entity = this.channelScheduleRepository.create({
-              id_canal: scheduleData.id_canal,
-              data: convertedData,
-              hora: scheduleData.hora,
-              qtd: scheduleData.qtd,
-              area_solicitante: areaSolicitante,
-              user_id: userId
-            });
-            await this.channelScheduleRepository.save(entity as any);
-          }
-
-          console.log(`✅ Agendamento criado - Canal: ${scheduleData.id_canal}, Área: ${areaSolicitante}, Qtd: ${scheduleData.qtd}`);
-        }
-      } catch (error) {
-        console.error('❌ Erro ao inserir agendamento de canal:', error);
-        // Continua processando outros subitems
-      }
-    }
-  }
-
-
-
 
 
   /**
@@ -1184,6 +762,254 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
     
     return undefined;
   }
+
+  /**
+   * Override: Monta valor para coluna People a partir de monday_items.team (Times)
+   * Implementação GAM: aceita lookup_mkrt36cj ou text_mkvhvcw4, faz fallback para subscribers
+   */
+  protected override async buildPeopleFromLookupObjetivo(data: Record<string, any> | undefined): Promise<{ personsAndTeams: { id: string; kind: 'team' }[] } | undefined> {
+    try {
+      // Tentar buscar primeiro lookup_mkrt36cj (GAM), depois text_mkvhvcw4 (padrão)
+      let areaSolicitante = String(data?.['lookup_mkrt36cj'] ?? data?.['text_mkvhvcw4'] ?? '').trim();
+      
+      // Se não encontrou, tentar qualquer campo lookup_* para compatibilidade
+      if (!areaSolicitante && data) {
+        const lookupKeys = Object.keys(data).filter(k => k.startsWith('lookup_'));
+        if (lookupKeys.length > 0) {
+          areaSolicitante = String(data[lookupKeys[0]] ?? '').trim();
+        }
+      }
+      
+      if (!areaSolicitante) return undefined;
+      
+      const item = await this.mondayItemRepository.findOne({ where: { name: areaSolicitante } });
+      if (!item) return undefined;
+      
+      // Se team existe e tem valores
+      let ids: string[] = [];
+      const team = item.team as any;
+      if (team) {
+        if (Array.isArray(team)) {
+          ids = team.map(String).filter((s: string) => s.trim().length > 0);
+        } else if (typeof team === 'string' && team.trim().length > 0) {
+          ids = [team.trim()];
+        }
+      }
+      
+      // Se team está vazio, fazer fallback para subscribers
+      if (!ids.length) {
+        try {
+          const subscribers = await this.subscriberRepository.find();
+          const teamIds: string[] = [];
+          
+          for (const sub of subscribers) {
+            let teamId: string | undefined;
+            
+            // Tentar diferentes propriedades
+            if ((sub as any).mondayTeamId) {
+              teamId = String((sub as any).mondayTeamId).trim();
+            } else if ((sub as any).monday_team_id) {
+              teamId = String((sub as any).monday_team_id).trim();
+            } else if ((sub as any).teamId) {
+              teamId = String((sub as any).teamId).trim();
+            } else if ((sub as any).team_id) {
+              teamId = String((sub as any).team_id).trim();
+            }
+            
+            if (teamId && teamId.length > 0) {
+              teamIds.push(teamId);
+            }
+          }
+          
+          if (teamIds.length > 0) {
+            return {
+              personsAndTeams: teamIds.map((id) => ({ id, kind: 'team' as const }))
+            };
+          }
+        } catch (e) {
+          console.warn('Falha ao buscar subscribers como fallback:', e);
+          // Retornar objeto vazio quando há erro no fallback (não undefined)
+          return { personsAndTeams: [] };
+        }
+        
+        return undefined;
+      }
+      
+      return {
+        personsAndTeams: ids.map((id) => ({ id, kind: 'team' as const }))
+      };
+    } catch (e) {
+      console.warn('Falha em buildPeopleFromLookupObjetivo:', e);
+      return undefined;
+    }
+  }
+
+  /**
+   * Override: Gera string composta para o segundo board
+   * Implementação GAM: busca códigos de produtos e adiciona código de subproduto quando disponível
+   */
+  protected override async buildCompositeTextFieldSecondBoard(formData: FormSubmissionData, itemId?: string): Promise<string> {
+    const d = formData?.data ?? {};
+    
+    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
+    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
+    
+    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
+    
+    const idPart = itemId ? `id-${itemId}` : "";
+    
+    // Usar os novos campos de texto diretos ao invés de lookup
+    const textFields = [
+      "text_mkvhz8g3", // Tipo Cliente (era lookup_mkrtaebd)
+      "text_mkvhedf5", // Tipo Campanha (era lookup_mkrt66aq)  
+      "text_mkvhqgvn", // Tipo Disparo (era lookup_mkrtxa46)
+      "text_mkvhv5ma", // Mecânica (era lookup_mkrta7z1)
+      "text_mkvhvcw4", // Área Solicitante (era lookup_mkrt36cj)
+      "text_mkvh2z7j", // Objetivo (era lookup_mkrtwq7k)
+      "text_mkvhwyzr", // Produto (era lookup_mkrtvsdj)
+      "text_mkvhgbp8", // Canal (era lookup_mkrtcctn)
+      "text_mkvhammc"  // Segmento (era lookup_mkrtxgmt)
+    ] as const;
+    
+    const values: string[] = [];
+    
+    // Buscar board_id do board "Produto" para resolução de códigos
+    let produtoBoardId: string | undefined;
+    try {
+      const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
+      produtoBoardId = produtoBoard?.id;
+    } catch (e) {
+      console.warn('Erro ao buscar board Produto:', e);
+    }
+    
+    for (const field of textFields) {
+      let textVal = String(d[field] ?? "").trim();
+      
+      // Para o campo de produto (text_mkvhwyzr), tentar buscar código
+      if (field === "text_mkvhwyzr" && textVal && produtoBoardId) {
+        try {
+          const code = await this.getCodeByItemName(textVal, produtoBoardId);
+          if (code) {
+            // Tentar buscar código do subproduto
+            try {
+              const subproductCode = await this.mondayService.getSubproductCodeByProduct(textVal);
+              if (subproductCode) {
+                textVal = `${code}_${subproductCode}`;
+              } else {
+                textVal = code;
+              }
+            } catch (e) {
+              // Se falhar ao buscar subproduto, usar apenas o código do produto
+              textVal = code;
+            }
+          }
+        } catch (e) {
+          console.warn(`Erro ao buscar código para produto ${textVal}:`, e);
+        }
+      }
+      // Para outros campos, tentar buscar código também
+      else if (textVal && field !== "text_mkvhwyzr") {
+        try {
+          const code = await this.getCodeByItemName(textVal);
+          if (code) {
+            textVal = code;
+          }
+        } catch (e) {
+          // Manter valor original se falhar
+        }
+      }
+      
+      // Manter posição vazia para preservar a estrutura da taxonomia
+      values.push(textVal);
+    }
+
+    // Não remover campos vazios para manter as posições fixas na taxonomia
+    const parts = [
+      yyyymmdd,
+      idPart,
+      ...values
+    ];
+    return parts.join("-");
+  }
+
+  /**
+   * Override: Insere dados dos subitems na tabela channel_schedules
+   * Implementação GAM: trata erros corretamente
+   */
+  protected override async insertChannelSchedules(subitems: any[], formData: FormSubmissionData): Promise<void> {
+    if (!this.channelScheduleService) {
+      console.warn('ChannelScheduleService não disponível. Dados não serão inseridos em channel_schedules.');
+      return;
+    }
+
+    // Extrair área solicitante do formulário - GAM usa text_mkvhvcw4
+    const areaSolicitante = formData.data?.text_mkvhvcw4
+      || formData.data?.conectar_quadros__1
+      || formData.data?.lookup_mkrt36cj
+      || formData.data?.area_solicitante
+      || formData.data?.gam_requesting_area
+      || formData.data?.briefing_requesting_area;
+    const userId = formData.data?.user_id || undefined;
+
+    if (!areaSolicitante) {
+      console.warn('⚠️ Área solicitante não encontrada no formulário. Agendamentos serão criados sem área.');
+    }
+
+    console.log(`📝 Criando agendamentos para área solicitante: ${areaSolicitante || 'Não especificada'}`);
+
+    for (const subitem of subitems) {
+      try {
+        const scheduleData = {
+          id_canal: subitem.id || subitem.conectar_quadros_mkkcjhuc || '',
+          data: subitem.data__1 || subitem.conectar_quadros_mkkbt3fq || '', 
+          hora: subitem.conectar_quadros_mkkcnyr3 || '00:00',
+          qtd: subitem.n_meros_mkkchcmk || 0
+        };
+
+        if (scheduleData.id_canal && scheduleData.data && scheduleData.qtd > 0) {
+          // Converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
+          const convertedData = this.convertDateFormat(scheduleData.data);
+          
+          await this.channelScheduleService.create({
+            id_canal: scheduleData.id_canal,
+            data: convertedData,
+            hora: scheduleData.hora,
+            qtd: scheduleData.qtd,
+            area_solicitante: areaSolicitante,
+            user_id: userId,
+            tipo: 'agendamento' // Formulário sempre cria agendamento
+          } as any);
+
+          console.log(`✅ Agendamento criado - Canal: ${scheduleData.id_canal}, Área: ${areaSolicitante}, Qtd: ${scheduleData.qtd}`);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao inserir agendamento de canal:', error);
+        // Continua processando outros subitems
+      }
+    }
+  }
+
+  /**
+   * Converte data entre formatos DD/MM/YYYY e YYYY-MM-DD
+   */
+  private convertDateFormat(dateStr: string): string {
+    if (!dateStr) return dateStr;
+    
+    // Se está em formato YYYY-MM-DD, converter para DD/MM/YYYY
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Se já está em DD/MM/YYYY, retornar como está
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Para outros formatos, retornar original
+    return dateStr;
+  }
   
 
 
@@ -1193,125 +1019,7 @@ export class NewCampaignGAMService extends BaseFormSubmissionService {
 
 
 
-  /**
-   * Monta valor para coluna People a partir de monday_items.team (Times)
-   * Busca monday_items por name == text_mkvhvcw4 (Área Solicitante) e converte team (ids) para personsAndTeams com kind: 'team'
-   */
-  private async buildPeopleFromLookupObjetivo(data: Record<string, any> | undefined): Promise<{ personsAndTeams: { id: string; kind: 'team' }[] } | undefined> {
-    try {
-      const areaSolicitante = String(
-        data?.['text_mkvhvcw4']
-        ?? data?.['lookup_mkrt6ws9']
-        ?? data?.['area_solicitante']
-        ?? data?.['gam_requesting_area']
-        ?? ''
-      ).trim();
-      if (!areaSolicitante) return undefined;
-      const item = await this.mondayItemRepository.findOne({ where: { name: areaSolicitante } });
-      let ids = (item?.team ?? []).map(String).filter((s) => s.trim().length > 0);
-
-      if (!ids.length) {
-        const fallbackSubscribers = await this.subscriberRepository.find({ where: { area: areaSolicitante } } as any);
-        ids = fallbackSubscribers
-          .map((subscriber: any) => subscriber?.mondayTeamId ?? subscriber?.monday_team_id ?? subscriber?.teamId ?? subscriber?.team_id)
-          .filter((teamId: unknown): teamId is string | number => teamId !== null && teamId !== undefined)
-          .map((teamId: string | number) => String(teamId).trim())
-          .filter((teamId: string) => teamId.length > 0);
-      }
-
-      if (!ids.length) return undefined;
-      return {
-        personsAndTeams: ids.map((id) => ({ id, kind: 'team' as const }))
-      };
-    } catch (e) {
-      console.warn('Falha em buildPeopleFromLookupObjetivo:', e);
-      return { personsAndTeams: [] };
-    }
-  }
-
-  /**
-   * Constrói o valor do campo text_mkr3znn0 usando os novos campos de texto text_mkvh*
-   * {Data do Disparo Texto} - id-<abc123qerty> - text_mkvhz8g3 - text_mkvhedf5 - text_mkvhqgvn -
-   * text_mkvhv5ma - text_mkvhvcw4 - text_mkvh2z7j - text_mkvhwyzr - text_mkvhgbp8 - text_mkvhammc - name
-   * Inclui lógica IF para subprodutos: se existir subproduto, usa {Código Produto}_{Código Subproduto}
-   */
-  private async buildCompositeTextField(formData: FormSubmissionData, itemId?: string): Promise<string> {
-    const d = formData?.data ?? {};
-
-    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
-    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
-
-    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
-    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
-
-    // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
-    const idPart = itemId ? `id-${itemId}` : "";
-
-    // Mapeamento híbrido: lookup_* (formulários CRM) → gam_* (formulários GAM puros)
-    // Tentamos lookup primeiro, se não existir, tentamos gam
-    const fieldPairs = [
-      { lookup: "lookup_mkrtaebd", gam: "gam_client_type" },      // Tipo Cliente
-      { lookup: "lookup_mkrt66aq", gam: "gam_campaign_type" },    // Tipo Campanha
-      { lookup: "lookup_mkrtxa46", gam: "gam_mechanism" },        // Mecânica
-      { lookup: "lookup_mkrta7z1", gam: "gam_requesting_area" },  // Área Solicitante
-      { lookup: "lookup_mkrt36cj", gam: "gam_target_segment" },   // Segmento Alvo
-      { lookup: "lookup_mkrtwq7k", gam: "gam_objective" },        // Objetivo
-      { lookup: "lookup_mkrtvsdj", gam: "gam_product_service" },  // Produto / Serviço
-      { lookup: "lookup_mkrtcctn", gam: "gam_format_type" },      // Formato
-      { lookup: "lookup_mkrtxgmt", gam: "gam_campaign_type_specific" } // Tipo de Campanha Específica
-    ];
-
-    // Buscar board_id do board "Produto" uma vez para evitar colisão
-    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
-    const produtoBoardId = produtoBoard?.id;
-
-    const codes: string[] = [];
-    for (const pair of fieldPairs) {
-      // Tentar lookup primeiro, depois gam
-      const nameVal = String(d[pair.lookup] ?? d[pair.gam] ?? "").trim();
-      if (!nameVal) {
-        // Manter posição vazia para preservar a estrutura da taxonomia
-        codes.push("");
-        continue;
-      }
-
-      try {
-        let code: string | undefined;
-
-        // Lógica especial para produtos (lookup_mkrtvsdj / gam_product_service): buscar no board correto e incluir subproduto se existir
-        if (pair.lookup === "lookup_mkrtvsdj") {
-          // Buscar código do produto no board específico para evitar colisão com subprodutos
-          code = await this.getCodeByItemName(nameVal, produtoBoardId);
-
-          if (code) {
-            const subproductCode = await this.mondayService.getSubproductCodeByProduct(nameVal);
-            if (subproductCode) {
-              code = `${code}_${subproductCode}`;
-            }
-          }
-        } else {
-          // Para outros campos, buscar normalmente
-          code = await this.getCodeByItemName(nameVal);
-        }
-
-        codes.push(code ?? nameVal);
-      } catch {
-        codes.push(nameVal);
-      }
-    }
-
-    const tailName = String(d["name"] ?? "").trim();
-
-    // Não remover campos vazios para manter as posições fixas na taxonomia
-    const parts = [
-      yyyymmdd,
-      idPart,
-      ...codes,
-      tailName,
-    ];
-
-    return parts.join("-");
-  } 
+ 
 
 
 

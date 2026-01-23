@@ -2,26 +2,32 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '../config/database';
-import { FormSubmissionData, MondayColumnType, MondayFormMapping, MARKETING_BOARD_FORM_MAPPING } from '../dto/MondayFormMappingDto';
+import { FormSubmissionData, MondayColumnType, MondayFormMapping, MARKETING_BOARD_FORM_MAPPING, SubitemData } from '../dto/MondayFormMappingDto';
 import { MondayItem } from '../entities/MondayItem';
 import { MondayBoard } from '../entities/MondayBoard';
 import { Subscriber } from '../entities/Subscriber';
+import { ChannelSchedule } from '../entities/ChannelSchedule';
 import { MondayService } from './MondayService';
+import { ChannelScheduleService } from './ChannelScheduleService';
 import { buildSafePath, sanitizeFilename } from '../utils/pathSecurity';
 import { getValueByPath } from '../utils/objectHelpers';
 import { BriefingValidator } from '../utils/briefingValidator';
+import { convertDateFormat, toYYYYMMDD } from '../utils/dateFormatters';
 
 export abstract class BaseFormSubmissionService {
   protected readonly mondayService: MondayService;
   protected readonly subscriberRepository: Repository<Subscriber>;
   protected readonly mondayItemRepository: Repository<MondayItem>;
   protected readonly mondayBoardRepository: Repository<MondayBoard>;
+  protected readonly channelScheduleRepository: Repository<ChannelSchedule>;
+  protected channelScheduleService?: ChannelScheduleService;
 
   constructor() {
     this.mondayService = new MondayService();
     this.subscriberRepository = AppDataSource.getRepository(Subscriber);
     this.mondayItemRepository = AppDataSource.getRepository(MondayItem);
     this.mondayBoardRepository = AppDataSource.getRepository(MondayBoard);
+    this.channelScheduleRepository = AppDataSource.getRepository(ChannelSchedule);
   }
 
   protected isDev(): boolean {
@@ -792,4 +798,380 @@ export abstract class BaseFormSubmissionService {
     
     return closest;
   }
+
+  /**
+   * Constrói o valor do campo text_mkr3znn0 usando os novos campos de texto text_mkvh*
+   */
+  protected async buildCompositeTextField(formData: FormSubmissionData, itemId?: string): Promise<string> {
+    const d = formData?.data ?? {};
+
+    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
+    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
+
+    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
+
+    // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
+    const idPart = itemId ? `id-${itemId}` : "";
+
+    // Mapeamento híbrido: lookup_* (formulários CRM) → gam_* (formulários GAM puros)
+    const fieldPairs = [
+      { lookup: "lookup_mkrtaebd", gam: "gam_client_type" },      // Tipo Cliente
+      { lookup: "lookup_mkrt66aq", gam: "gam_campaign_type" },    // Tipo Campanha
+      { lookup: "lookup_mkrtxa46", gam: "gam_mechanism" },        // Mecânica
+      { lookup: "lookup_mkrta7z1", gam: "gam_requesting_area" },  // Área Solicitante
+      { lookup: "lookup_mkrt36cj", gam: "gam_target_segment" },   // Segmento Alvo
+      { lookup: "lookup_mkrtwq7k", gam: "gam_objective" },        // Objetivo
+      { lookup: "lookup_mkrtvsdj", gam: "gam_product_service" },  // Produto / Serviço
+      { lookup: "lookup_mkrtcctn", gam: "gam_format_type" },      // Formato
+      { lookup: "lookup_mkrtxgmt", gam: "gam_campaign_type_specific" } // Tipo de Campanha Específica
+    ];
+
+    // Buscar board_id do board "Produto" uma vez para evitar colisão
+    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
+    const produtoBoardId = produtoBoard?.id;
+
+    const codes: string[] = [];
+    for (const pair of fieldPairs) {
+      // Tentar lookup primeiro, depois gam
+      const nameVal = String(d[pair.lookup] ?? d[pair.gam] ?? "").trim();
+      if (!nameVal) {
+        // Manter posição vazia para preservar a estrutura da taxonomia
+        codes.push("");
+        continue;
+      }
+
+      try {
+        let code: string | undefined;
+
+        // Lógica especial para produtos (lookup_mkrtvsdj / gam_product_service): buscar no board correto e incluir subproduto se existir
+        if (pair.lookup === "lookup_mkrtvsdj") {
+          // Buscar código do produto no board específico para evitar colisão com subprodutos
+          code = await this.getCodeByItemName(nameVal, produtoBoardId);
+
+          if (code) {
+            const subproductCode = await this.mondayService.getSubproductCodeByProduct(nameVal);
+            if (subproductCode) {
+              code = `${code}_${subproductCode}`;
+            }
+          }
+        } else {
+          // Para outros campos, buscar normalmente
+          code = await this.getCodeByItemName(nameVal);
+        }
+
+        codes.push(code ?? nameVal);
+      } catch {
+        codes.push(nameVal);
+      }
+    }
+
+    const tailName = String(d["name"] ?? "").trim();
+
+    // Não remover campos vazios para manter as posições fixas na taxonomia
+    const parts = [
+      yyyymmdd,
+      idPart,
+      ...codes,
+      tailName,
+    ];
+
+    return parts.join("-");
+  }
+
+  /**
+   * Gera string composta para o segundo board usando os novos campos text_mkvh*
+   */
+  protected async buildCompositeTextFieldSecondBoard(formData: FormSubmissionData, itemId?: string): Promise<string> {
+    const d = formData?.data ?? {};
+    
+    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
+    const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
+    
+    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
+    const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
+    
+    const idPart = itemId ? `id-${itemId}` : "";
+    
+    // Campos com fallback: novo formato (text_*) ou formato legado (lookup_*)
+    const fieldMappings = [
+      { text: "text_mkvhz8g3", lookup: "lookup_mkrtaebd" }, // Tipo Cliente
+      { text: "text_mkvhedf5", lookup: "lookup_mkrt66aq" }, // Tipo Campanha
+      { text: "text_mkvhqgvn", lookup: "lookup_mkrtxa46" }, // Tipo Disparo
+      { text: "text_mkvhv5ma", lookup: "lookup_mkrta7z1" }, // Mecânica
+      { text: "text_mkvhvcw4", lookup: "lookup_mkrt36cj" }, // Área Solicitante
+      { text: "text_mkvh2z7j", lookup: "lookup_mkrtwq7k" }, // Objetivo
+      { text: "text_mkvhwyzr", lookup: "lookup_mkrtvsdj" }, // Produto
+      { text: "text_mkvhgbp8", lookup: "lookup_mkrtcctn" }, // Canal
+      { text: "text_mkvhammc", lookup: "lookup_mkrtxgmt" }  // Segmento
+    ];
+    
+    const values: string[] = [];
+    for (const mapping of fieldMappings) {
+      // Preferir novo formato text_*, com fallback para lookup_*
+      let textVal = String(d[mapping.text] ?? d[mapping.lookup] ?? "").trim();
+      
+      // Se tem lookup, tentar buscar código
+      if (textVal) {
+        try {
+          const code = await this.getCodeByItemName(textVal);
+          if (code) {
+            textVal = code;
+          }
+        } catch (e) {
+          // Manter valor original se falhar
+        }
+      }
+      
+      // Manter posição vazia para preservar a estrutura da taxonomia
+      values.push(textVal);
+    }
+
+    // Não remover campos vazios para manter as posições fixas na taxonomia
+    const parts = [
+      yyyymmdd,
+      idPart,
+      ...values
+    ];
+    return parts.join("-");
+  }
+
+  /**
+   * Monta valor para coluna People a partir de monday_items.team (Times)
+   */
+  protected async buildPeopleFromLookupObjetivo(data: Record<string, any> | undefined): Promise<{ personsAndTeams: { id: string; kind: 'team' }[] } | undefined> {
+    try {
+      // Suporta ambos formatos: novo (text_mkvhvcw4) e legado (lookup_mkrt36cj)
+      const areaSolicitante = String(data?.["text_mkvhvcw4"] ?? data?.["lookup_mkrt36cj"] ?? '').trim();
+      if (!areaSolicitante) return undefined;
+      const item = await this.mondayItemRepository.findOne({ where: { name: areaSolicitante } });
+      const ids = (item?.team ?? []).map(String).filter((s) => s.trim().length > 0);
+      if (!ids.length) return undefined;
+      return {
+        personsAndTeams: ids.map((id) => ({ id, kind: 'team' as const }))
+      };
+    } catch (e) {
+      console.warn('Falha em buildPeopleFromLookupObjetivo:', e);
+      return undefined;
+    }
+  }
+
+  /**
+   * Insere dados dos subitems na tabela channel_schedules
+   */
+  protected async insertChannelSchedules(subitems: any[], formData: FormSubmissionData): Promise<void> {
+    if (!this.channelScheduleService) {
+      console.warn('ChannelScheduleService não disponível. Dados não serão inseridos em channel_schedules.');
+      return;
+    }
+
+    // Extrair área solicitante do formulário
+    const areaSolicitante = formData.data?.conectar_quadros__1
+      || formData.data?.lookup_mkrt36cj
+      || formData.data?.area_solicitante
+      || formData.data?.gam_requesting_area
+      || formData.data?.briefing_requesting_area;
+    const userId = formData.data?.user_id || undefined;
+
+    if (!areaSolicitante) {
+      console.warn('⚠️ Área solicitante não encontrada no formulário. Agendamentos serão criados sem área.');
+    }
+
+    console.log(`📝 Criando agendamentos para área solicitante: ${areaSolicitante || 'Não especificada'}`);
+
+    for (const subitem of subitems) {
+      try {
+        const scheduleData = {
+          id_canal: subitem.id || '',
+          data: subitem.data__1 || '', 
+          hora: subitem.conectar_quadros_mkkcnyr3 || '00:00',
+          qtd: subitem.n_meros_mkkchcmk || 0
+        };
+
+        if (scheduleData.id_canal && scheduleData.data && scheduleData.qtd > 0) {
+          // Converter data de YYYY-MM-DD para DD/MM/YYYY se necessário
+          const convertedData = convertDateFormat(scheduleData.data);
+          
+          await this.channelScheduleService.create({
+            id_canal: scheduleData.id_canal,
+            data: convertedData,
+            hora: scheduleData.hora,
+            qtd: scheduleData.qtd,
+            area_solicitante: areaSolicitante,
+            user_id: userId,
+            tipo: 'agendamento' // Formulário sempre cria agendamento
+          } as any);
+
+          console.log(`✅ Agendamento criado - Canal: ${scheduleData.id_canal}, Área: ${areaSolicitante}, Qtd: ${scheduleData.qtd}`);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao inserir agendamento de canal:', error);
+        // Continua processando outros subitems
+      }
+    }
+  }
+
+  /**
+   * Soma total já reservada (qtd) em channel_schedules para um canal/data/hora
+   */
+  protected async sumReservedQty(idCanal: string, dataDate: Date, hora: string, areaSolicitante?: string): Promise<number> {
+    const schedules = await this.channelScheduleRepository.find({
+      where: {
+        id_canal: idCanal,
+        data: this.truncateDate(dataDate),
+        hora: hora
+      }
+    });
+
+    let totalJaUsado = 0;
+    schedules.forEach(schedule => {
+      const qtd = Number.parseFloat(schedule.qtd.toString());
+      const tipo = schedule.tipo || 'agendamento';
+
+      if (tipo === 'agendamento') {
+        totalJaUsado += qtd;
+      } else if (tipo === 'reserva') {
+        if (!areaSolicitante || schedule.area_solicitante !== areaSolicitante) {
+          totalJaUsado += qtd;
+        }
+      }
+    });
+
+    return totalJaUsado;
+  }
+
+  /**
+   * Ajusta os objetos de __SUBITEMS__ respeitando a capacidade disponível por canal/data/hora
+   */
+  protected async adjustSubitemsCapacity(
+    subitems: SubitemData[], 
+    formData: FormSubmissionData | undefined, 
+    timeSlotsBoard: string
+  ): Promise<SubitemData[]> {
+    // Extrair área solicitante do formData
+    const areaSolicitante = formData?.data?.gam_requesting_area 
+      || formData?.data?.requesting_area 
+      || formData?.data?.area_solicitante;
+
+    // Carrega slots de horários ativos, ordenados por nome ASC
+    const activeTimeSlots = await this.mondayItemRepository.find({
+      where: { board_id: timeSlotsBoard, status: 'Ativo' },
+      order: { name: 'ASC' }
+    });
+
+    // Copiamos a lista pois vamos inserir itens dinamicamente
+    const items: SubitemData[] = subitems.map(s => ({ ...s }));
+
+    // Função para chavear canal/data/hora
+    const key = (id: string, d: Date, h: string) => `${id}|${d.toISOString().slice(0,10)}|${h}`;
+
+    // Loop até não haver modificações
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const staged: Record<string, number> = {};
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const idCanal = String(item.id ?? '').trim();
+        const dataStr = String(item.data__1 ?? '').trim();
+        const horaAtual = String(item.conectar_quadros_mkkcnyr3 ?? '').trim();
+        const demanda = Number(item.n_meros_mkkchcmk ?? 0);
+
+        // Remover itens inválidos ou com zero
+        if (!idCanal || !dataStr || !horaAtual || demanda <= 0) {
+          items.splice(i, 1);
+          changed = true;
+          break;
+        }
+
+        const dataDate = this.parseFlexibleDateToDate(dataStr);
+        if (!dataDate) continue;
+
+        // capacidade do canal
+        const canalItem = await this.mondayItemRepository.findOne({ where: { item_id: String(idCanal) } });
+        const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
+          ? Number(canalItem.max_value)
+          : undefined;
+        if (maxValue === undefined || Number.isNaN(maxValue)) {
+          continue;
+        }
+
+        // Horários especiais que compartilham limite (8:00 e 8:30)
+        const splitHours = ["08:00", "08:30"];
+        const effectiveMaxValue = splitHours.includes(horaAtual) ? maxValue / 2 : maxValue;
+
+        // disponibilidade = max - (reservas em DB + reservas staged desta passada)
+        const dbReserved = await this.sumReservedQty(idCanal, dataDate, horaAtual, areaSolicitante);
+        const stagedReserved = staged[key(idCanal, dataDate, horaAtual)] ?? 0;
+        const availableAtCurrent = Math.max(0, effectiveMaxValue - (dbReserved + stagedReserved));
+
+        if (demanda <= availableAtCurrent) {
+          // aloca tudo neste slot
+          staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + demanda;
+          continue;
+        }
+
+        // Se capacidade disponível for zero ou negativa
+        if (availableAtCurrent <= 0) {
+          const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
+          const nextIndex = idx >= 0 ? idx + 1 : 0;
+          if (nextIndex >= activeTimeSlots.length) {
+            console.warn(`Sem próximo horário disponível após "${horaAtual}" para canal ${idCanal}. Restante: ${demanda}`);
+            items.splice(i, 1);
+            changed = true;
+            break;
+          }
+          const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
+          const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: demanda };
+          items.splice(i, 1, novoSubitem);
+          changed = true;
+          break;
+        }
+
+        // Ajusta o item atual para a capacidade disponível
+        item.n_meros_mkkchcmk = availableAtCurrent;
+        staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + availableAtCurrent;
+
+        // Resto deve ir para o próximo horário
+        const restante = Math.max(0, demanda - availableAtCurrent);
+        const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
+        const nextIndex = idx >= 0 ? idx + 1 : 0;
+        
+        if (nextIndex >= activeTimeSlots.length) {
+          let foundAvailableSlot = false;
+          for (let j = 0; j < activeTimeSlots.length; j++) {
+            const testHora = (activeTimeSlots[j].name || '').trim();
+            const testReserved = await this.sumReservedQty(idCanal, dataDate, testHora, areaSolicitante);
+            const testStaged = staged[key(idCanal, dataDate, testHora)] ?? 0;
+            const testEffectiveMax = splitHours.includes(testHora) ? maxValue / 2 : maxValue;
+            const testAvailable = Math.max(0, testEffectiveMax - (testReserved + testStaged));
+            
+            if (testAvailable > 0) {
+              const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: testHora, n_meros_mkkchcmk: restante };
+              items.splice(i + 1, 0, novoSubitem);
+              foundAvailableSlot = true;
+              changed = true;
+              break;
+            }
+          }
+          
+          if (!foundAvailableSlot) {
+            console.warn(`Nenhum horário disponível para alocar restante de ${restante} unidades no canal ${idCanal}`);
+          }
+          
+          break;
+        }
+
+        const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
+        const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: restante };
+        items.splice(i + 1, 0, novoSubitem);
+        changed = true;
+        break;
+      }
+    }
+
+    return items.filter(it => Number(it.n_meros_mkkchcmk ?? 0) > 0);
+  }
 }
+
