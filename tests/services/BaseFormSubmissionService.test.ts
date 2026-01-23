@@ -1,4 +1,4 @@
-import { BaseFormSubmissionService } from '../../src/services/BaseFormSubmissionService';
+import { BaseFormSubmissionService, SecondBoardFieldMapping } from '../../src/services/BaseFormSubmissionService';
 import { MondayService } from '../../src/services/MondayService';
 import { AppDataSource } from '../../src/config/database';
 import { FormSubmissionData, MondayFormMapping, MondayColumnType } from '../../src/dto/MondayFormMappingDto';
@@ -91,6 +91,46 @@ class ConcreteFormSubmissionService extends BaseFormSubmissionService {
   }
   public async testProcessFileUpload(itemId: string, boardId: string, formData: FormSubmissionData) {
     return this.processFileUpload(itemId, boardId, formData);
+  }
+  public async testBuildSecondBoardPayloadFromSubitem(
+    subitem: any,
+    enrichedFormData: FormSubmissionData,
+    firstBoardAllColumnValues: Record<string, any>,
+    firstBoardItemId: string,
+    secondBoardCorrelationFromSubmission: Array<{ id_submission: string; id_second_board: string }>,
+    secondBoardCorrelationFromFirst: Array<{ id_first_board: string; id_second_board: string }>,
+    itemNameSuffix: string = ''
+  ) {
+    return this.buildSecondBoardPayloadFromSubitem(
+      subitem,
+      enrichedFormData,
+      firstBoardAllColumnValues,
+      firstBoardItemId,
+      secondBoardCorrelationFromSubmission,
+      secondBoardCorrelationFromFirst,
+      itemNameSuffix
+    );
+  }
+  public testGetSecondBoardFieldMapping() {
+    return this.getSecondBoardFieldMapping();
+  }
+}
+
+// Subclasse de teste com mapeamento de campos
+class TestServiceWithFieldMapping extends ConcreteFormSubmissionService {
+  protected getSecondBoardFieldMapping(): SecondBoardFieldMapping | null {
+    return {
+      canal: 'test_canal',
+      cliente: 'test_cliente',
+      campanha: 'test_campanha',
+      disparo: 'test_disparo',
+      mecanica: 'test_mecanica',
+      solicitante: 'test_solicitante',
+      objetivo: 'test_objetivo',
+      produto: 'test_produto',
+      segmento: 'test_segmento',
+      useCanalFromSubitem: false
+    };
   }
 }
 
@@ -1218,6 +1258,441 @@ describe('BaseFormSubmissionService', () => {
       consoleErrorSpy.mockRestore();
       mockExistsSync.mockRestore();
       mockUnlinkSync.mockRestore();
+    });
+  });
+
+  // Testes para novos métodos de refatoramento
+  describe('getSecondBoardFieldMapping', () => {
+    it('should return null by default in base class', () => {
+      const result = service.testGetSecondBoardFieldMapping();
+      expect(result).toBeNull();
+    });
+
+    it('should return field mapping when overridden in subclass', () => {
+      const serviceWithMapping = new TestServiceWithFieldMapping();
+      const result = serviceWithMapping.testGetSecondBoardFieldMapping();
+      
+      expect(result).not.toBeNull();
+      expect(result).toHaveProperty('canal', 'test_canal');
+      expect(result).toHaveProperty('cliente', 'test_cliente');
+      expect(result).toHaveProperty('campanha', 'test_campanha');
+      expect(result).toHaveProperty('useCanalFromSubitem', false);
+    });
+  });
+
+  describe('buildSecondBoardPayloadFromSubitem', () => {
+    let serviceWithMapping: TestServiceWithFieldMapping;
+    let mockGetCodeByItemName: jest.SpyInstance;
+    let mockBuildCompositeTextFieldSecondBoard: jest.SpyInstance;
+
+    beforeEach(() => {
+      serviceWithMapping = new TestServiceWithFieldMapping();
+      (serviceWithMapping as any).mondayService = mockMondayService;
+      (serviceWithMapping as any).mondayItemRepository = mockMondayItemRepository;
+      (serviceWithMapping as any).mondayBoardRepository = mockMondayBoardRepository;
+      
+      mockGetCodeByItemName = jest.spyOn(serviceWithMapping as any, 'getCodeByItemName').mockResolvedValue('CODE123');
+      mockBuildCompositeTextFieldSecondBoard = jest.spyOn(serviceWithMapping as any, 'buildCompositeTextFieldSecondBoard').mockResolvedValue('composite-value');
+      
+      mockMondayBoardRepository.findOne.mockResolvedValue({ id: 'prod_board_123' });
+      mockMondayService.getSubproductCodeByProduct.mockResolvedValue(null);
+      mockMondayService.getSubproductByProduct.mockResolvedValue(null);
+    });
+
+    it('should throw error when field mapping is not implemented', async () => {
+      const subitem = { campo1: 'valor1' };
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: {}
+      };
+
+      await expect(
+        service.testBuildSecondBoardPayloadFromSubitem(
+          subitem,
+          enrichedFormData,
+          {},
+          'item123',
+          [],
+          [],
+          ''
+        )
+      ).rejects.toThrow('getSecondBoardFieldMapping() must be implemented by subclass');
+    });
+
+    it('should build payload with correlations from submission (subitem priority)', async () => {
+      const subitem = { campo_sub: 'valor_subitem' };
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { campo_sub: 'valor_form' }
+      };
+      const correlations = [
+        { id_submission: 'campo_sub', id_second_board: 'col_target' }
+      ];
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        subitem,
+        enrichedFormData,
+        {},
+        'item123',
+        correlations,
+        [],
+        ''
+      );
+
+      expect(result.column_values['col_target']).toBe('valor_subitem');
+    });
+
+    it('should build payload with correlations from form when not in subitem', async () => {
+      const subitem = {};
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { campo_form: 'valor_form_only' }
+      };
+      const correlations = [
+        { id_submission: 'campo_form', id_second_board: 'col_target2' }
+      ];
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        subitem,
+        enrichedFormData,
+        {},
+        'item123',
+        correlations,
+        [],
+        ''
+      );
+
+      expect(result.column_values['col_target2']).toBe('valor_form_only');
+    });
+
+    it('should build payload with correlations from first board', async () => {
+      const firstBoardColumns = { first_col: 'first_value' };
+      const correlations = [
+        { id_first_board: 'first_col', id_second_board: 'second_col' }
+      ];
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        { id: 'form1', timestamp: '2024-01-01', formTitle: 'Test', data: {} },
+        firstBoardColumns,
+        'item123',
+        [],
+        correlations,
+        ''
+      );
+
+      expect(result.column_values['second_col']).toBe('first_value');
+    });
+
+    it('should set date_mkrk5v4c to today when undefined', async () => {
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        { id: 'form1', timestamp: '2024-01-01', formTitle: 'Test', data: {} },
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['date_mkrk5v4c']).toHaveProperty('date');
+    });
+
+    it('should build taxonomia with product code from subitem', async () => {
+      const subitem = { 
+        texto__1: 'PROD001',
+        conectar_quadros87__1: 'Produto Test'
+      };
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_canal: 'Email' }
+      };
+      
+      mockMondayService.getSubproductCodeByProduct.mockResolvedValue('SUB001');
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        subitem,
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      // texto6__1 é sobrescrito pelo nome do canal
+      expect(result.column_values['texto6__1']).toBe('Email');
+      expect(result.column_values['text_mkrrqsk6']).toBe('Email');
+    });
+
+    it('should use only product code when subproduct not found', async () => {
+      const subitem = { 
+        texto__1: 'PROD002',
+        conectar_quadros87__1: 'Produto Sem Sub'
+      };
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_canal: 'Push' }
+      };
+      
+      mockMondayService.getSubproductCodeByProduct.mockResolvedValue(null);
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        subitem,
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      // texto6__1 é sobrescrito pelo nome do canal
+      expect(result.column_values['texto6__1']).toBe('Push');
+    });
+
+    it('should handle canal resolution with useCanalFromSubitem=false', async () => {
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_canal: 'Email Marketing' }
+      };
+
+      await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(mockGetCodeByItemName).toHaveBeenCalledWith('Email Marketing');
+    });
+
+    it('should resolve lookup fields and set corresponding codes', async () => {
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: {
+          test_cliente: 'Cliente XYZ',
+          test_campanha: 'Campanha ABC',
+          test_disparo: 'Disparo 1'
+        }
+      };
+
+      mockGetCodeByItemName.mockResolvedValue('MOCK_CODE');
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['text_mkrrg2hp']).toBe('Cliente XYZ');
+      expect(result.column_values['text_mkrrna7e']).toBe('MOCK_CODE');
+      expect(mockGetCodeByItemName).toHaveBeenCalledWith('Cliente XYZ');
+    });
+
+    it('should set firstBoardItemId in conectar_quadros8__1', async () => {
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        { id: 'form1', timestamp: '2024-01-01', formTitle: 'Test', data: {} },
+        {},
+        'item_999',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['conectar_quadros8__1']).toBe('item_999');
+    });
+
+    it('should append itemNameSuffix to item_name', async () => {
+      const subitem = { texto__1: 'PROD001' };
+      
+      mockMondayService.getSubproductCodeByProduct.mockResolvedValue(null);
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        subitem,
+        { id: 'form1', timestamp: '2024-01-01', formTitle: 'Test', data: {} },
+        {},
+        'item123',
+        [],
+        [],
+        ' GAM'
+      );
+
+      expect(result.item_name).toContain(' GAM');
+    });
+
+    it('should handle numeric solicitante ID and resolve to name', async () => {
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_solicitante: '12345' }
+      };
+
+      mockMondayItemRepository.findOne.mockResolvedValue({
+        item_id: '12345',
+        name: 'Area Solicitante',
+        code: 'AREA_CODE'
+      });
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['text_mkrrxqng']).toBe('Area Solicitante');
+      expect(result.column_values['text_mkrrmmvv']).toBe('AREA_CODE');
+    });
+
+    it('should handle errors during solicitante resolution gracefully', async () => {
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_solicitante: '99999' }
+      };
+
+      mockMondayItemRepository.findOne.mockRejectedValue(new Error('DB Error'));
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['text_mkrrmmvv']).toBe('NaN');
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('should set subproduct fields when found', async () => {
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_produto: 'Produto Principal' }
+      };
+
+      mockMondayService.getSubproductByProduct.mockResolvedValue({
+        name: 'Subproduto A',
+        code: 'SUB_A'
+      });
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['text_mkw8et4w']).toBe('Subproduto A');
+      expect(result.column_values['text_mkw8jfw0']).toBe('SUB_A');
+    });
+
+    it('should skip correlation when from or to is empty', async () => {
+      const correlations = [
+        { id_submission: '', id_second_board: 'col1' },
+        { id_submission: 'field1', id_second_board: '' },
+        { id_submission: 'field2', id_second_board: 'col2' }
+      ];
+
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { field2: 'value2' }
+      };
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        enrichedFormData,
+        {},
+        'item123',
+        correlations,
+        [],
+        ''
+      );
+
+      expect(result.column_values['col1']).toBeUndefined();
+      expect(result.column_values['col2']).toBe('value2');
+    });
+
+    it('should copy pessoas5__1 from firstBoardAllColumnValues', async () => {
+      const firstBoardColumns = {
+        pessoas__1: { personsAndTeams: [{ id: 123, kind: 'person' }] }
+      };
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        {},
+        { id: 'form1', timestamp: '2024-01-01', formTitle: 'Test', data: {} },
+        firstBoardColumns,
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      expect(result.column_values['pessoas5__1']).toEqual(firstBoardColumns['pessoas__1']);
+    });
+
+    it('should build composite text fields when composite value exists', async () => {
+      mockBuildCompositeTextFieldSecondBoard.mockResolvedValue('COMP-2024-123');
+      const enrichedFormData: FormSubmissionData = {
+        id: 'form1',
+        timestamp: '2024-01-01',
+        formTitle: 'Test',
+        data: { test_canal: 'SMS' }
+      };
+
+      const result = await serviceWithMapping.testBuildSecondBoardPayloadFromSubitem(
+        { n_meros__1: 5 },
+        enrichedFormData,
+        {},
+        'item123',
+        [],
+        [],
+        ''
+      );
+
+      // texto6__1 é o nome do canal, e n_meros__1 padrão é 1 se não fornecido
+      expect(result.column_values['text_mkr5kh2r']).toContain('COMP-2024-123');
+      expect(result.column_values['text_mkr3jr1s']).toContain('COMP-2024-123');
+      expect(result.column_values['texto6__1']).toBe('SMS');
     });
   });
 });

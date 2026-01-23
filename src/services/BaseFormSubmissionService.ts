@@ -14,6 +14,22 @@ import { getValueByPath } from '../utils/objectHelpers';
 import { BriefingValidator } from '../utils/briefingValidator';
 import { convertDateFormat, toYYYYMMDD } from '../utils/dateFormatters';
 
+/**
+ * Interface para mapeamento de campos entre formulário e segundo board
+ */
+export interface SecondBoardFieldMapping {
+  canal: string;
+  cliente: string;
+  campanha: string;
+  disparo: string;
+  mecanica: string;
+  solicitante: string;
+  objetivo: string;
+  produto: string;
+  segmento: string;
+  useCanalFromSubitem?: boolean;
+}
+
 export abstract class BaseFormSubmissionService {
   protected readonly mondayService: MondayService;
   protected readonly subscriberRepository: Repository<Subscriber>;
@@ -201,8 +217,8 @@ export abstract class BaseFormSubmissionService {
     const out: Record<string, any> = {};
     for (const [key, rawVal] of Object.entries(connectColumnsRaw)) {
       // Caso já venha como { item_ids: [...] }, respeitar e seguir
-      if (rawVal && typeof rawVal === 'object' && Array.isArray((rawVal as any).item_ids)) {
-        const ids = (rawVal as any).item_ids.map(String).filter((s: string) => s.trim().length > 0);
+      if (rawVal && typeof rawVal === 'object' && Array.isArray(rawVal.item_ids)) {
+        const ids = rawVal.item_ids.map(String).filter((s: string) => s.trim().length > 0);
         if (ids.length > 0) {
           out[key] = { item_ids: ids };
           continue;
@@ -773,15 +789,15 @@ export abstract class BaseFormSubmissionService {
   /**
    * Encontra o subitem com data__1 mais próxima da data atual
    */
-  protected findClosestSubitemByDate(subitems: any[]): any | null {
+  protected findClosestSubitemByDate(subitems: unknown[]): unknown {
     if (!subitems || subitems.length === 0) return null;
     
     const today = this.truncateDate(new Date());
-    let closest: any | null = null;
+    let closest: unknown = null;
     let minDiff = Infinity;
     
     for (const sub of subitems) {
-      const dataStr = sub.data__1;
+      const dataStr = (sub as any).data__1;
       if (!dataStr) continue;
       
       const subDate = this.parseFlexibleDateToDate(String(dataStr));
@@ -919,6 +935,7 @@ export abstract class BaseFormSubmissionService {
             textVal = code;
           }
         } catch (e) {
+          console.warn(`Erro ao obter código para ${textVal}:`, e instanceof Error ? e.message : String(e));
           // Manter valor original se falhar
         }
       }
@@ -1098,8 +1115,8 @@ export abstract class BaseFormSubmissionService {
         }
 
         // Horários especiais que compartilham limite (8:00 e 8:30)
-        const splitHours = ["08:00", "08:30"];
-        const effectiveMaxValue = splitHours.includes(horaAtual) ? maxValue / 2 : maxValue;
+        const splitHours = new Set(["08:00", "08:30"]);
+        const effectiveMaxValue = splitHours.has(horaAtual) ? maxValue / 2 : maxValue;
 
         // disponibilidade = max - (reservas em DB + reservas staged desta passada)
         const dbReserved = await this.sumReservedQty(idCanal, dataDate, horaAtual, areaSolicitante);
@@ -1140,11 +1157,11 @@ export abstract class BaseFormSubmissionService {
         
         if (nextIndex >= activeTimeSlots.length) {
           let foundAvailableSlot = false;
-          for (let j = 0; j < activeTimeSlots.length; j++) {
-            const testHora = (activeTimeSlots[j].name || '').trim();
+          for (const testSlot of activeTimeSlots) {
+            const testHora = (testSlot.name || '').trim();
             const testReserved = await this.sumReservedQty(idCanal, dataDate, testHora, areaSolicitante);
             const testStaged = staged[key(idCanal, dataDate, testHora)] ?? 0;
-            const testEffectiveMax = splitHours.includes(testHora) ? maxValue / 2 : maxValue;
+            const testEffectiveMax = splitHours.has(testHora) ? maxValue / 2 : maxValue;
             const testAvailable = Math.max(0, testEffectiveMax - (testReserved + testStaged));
             
             if (testAvailable > 0) {
@@ -1172,6 +1189,249 @@ export abstract class BaseFormSubmissionService {
     }
 
     return items.filter(it => Number(it.n_meros_mkkchcmk ?? 0) > 0);
+  }
+
+  /**
+   * Método que cada serviço filho pode sobrescrever para fornecer seu mapeamento de campos
+   * Retorna null por padrão para serviços que não usam segundo board
+   */
+  protected getSecondBoardFieldMapping(): SecondBoardFieldMapping | null {
+    return null;
+  }
+
+  /**
+   * Método genérico para construir payload do segundo board a partir de um subitem
+   * Extrai lógica comum entre GAM e CRM services
+   */
+  protected async buildSecondBoardPayloadFromSubitem(
+    subitem: SubitemData,
+    enrichedFormData: FormSubmissionData,
+    firstBoardAllColumnValues: Record<string, any>,
+    firstBoardItemId: string,
+    secondBoardCorrelationFromSubmission: Array<{ id_submission: string; id_second_board: string }>,
+    secondBoardCorrelationFromFirst: Array<{ id_first_board: string; id_second_board: string }>,
+    itemNameSuffix: string = ''
+  ): Promise<{ item_name: string; column_values: Record<string, any> }> {
+    const cv: Record<string, any> = {};
+    const fieldMapping = this.getSecondBoardFieldMapping();
+    
+    // Método deve ser implementado pelas subclasses
+    if (!fieldMapping) {
+      throw new Error('getSecondBoardFieldMapping() must be implemented by subclass');
+    }
+
+    // Buscar board_id do board "Produto" uma vez para evitar colisão
+    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
+    const produtoBoardId = produtoBoard?.id;
+
+    // Correlações submissão=>segundo (prioriza subitem, depois dado do formulário)
+    for (const m of secondBoardCorrelationFromSubmission) {
+      const from = (m.id_submission || '').trim();
+      const to = (m.id_second_board || '').trim();
+      if (!from || !to) continue;
+      let v: any = subitem[from];
+      if (v === undefined) {
+        v = enrichedFormData?.data?.[from];
+      }
+      if (v !== undefined) cv[to] = v;
+    }
+
+    // Correlações primeiro=>segundo
+    for (const m of secondBoardCorrelationFromFirst) {
+      const from = (m.id_first_board || '').trim();
+      const to = (m.id_second_board || '').trim();
+      if (!from || !to) continue;
+      const v = firstBoardAllColumnValues[from];
+      if (v !== undefined) cv[to] = v;
+    }
+
+    // date_mkrk5v4c: data de hoje no formato date da Monday
+    if (cv['date_mkrk5v4c'] === undefined) {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const iso = `${yyyy}-${mm}-${dd}`;
+      cv['date_mkrk5v4c'] = this.formatDateValue(iso);
+    }
+
+    // text_mkr3v9k3: valor de data__1 do subitem do formulário de submissão
+    if (cv['text_mkr3v9k3'] === undefined && subitem['data__1'] !== undefined) {
+      cv['text_mkr3v9k3'] = String(subitem['data__1']);
+    }
+
+    // pessoas5__1 do pessoas__1
+    if (firstBoardAllColumnValues['pessoas__1']) {
+      cv['pessoas5__1'] = firstBoardAllColumnValues['pessoas__1'];
+    }
+
+    // text_mkrr6jkh deve vir do item_id do primeiro board
+    cv['text_mkrr6jkh'] = String(firstBoardItemId);
+    
+    // Construir taxonomia: código do produto + código do subproduto (se encontrado)
+    const productCode = String(subitem.texto__1);
+    const productName = String(subitem.conectar_quadros87__1);
+    
+    // Buscar código do subproduto associado ao produto
+    const subproductCode = await this.mondayService.getSubproductCodeByProduct(productName);
+    
+    // Construir taxonomia final: produto_subproduto (se encontrado) ou apenas código do produto
+    if (subproductCode) {
+      cv['texto6__1'] = `${productCode}_${subproductCode}`;
+      console.log(`Taxonomia criada com subproduto: ${productCode}_${subproductCode} (produto: ${productName})`);
+    } else {
+      cv['texto6__1'] = productCode;
+      console.log(`Subproduto não encontrado para produto "${productName}", usando apenas código do produto: ${productCode}`);
+    }
+
+    // Canal - com lógica condicional para priorizar subitem em CRM
+    if (fieldMapping.useCanalFromSubitem) {
+      const canalDoSubitem = String(subitem.conectar_quadros87__1 ?? '').trim();
+      const canalDoFormulario = String(enrichedFormData.data[fieldMapping.canal] ?? '').trim();
+      cv['text_mkrrqsk6'] = canalDoSubitem || canalDoFormulario;
+    } else {
+      cv['text_mkrrqsk6'] = String(enrichedFormData.data[fieldMapping.canal] ?? '').trim();
+    }
+
+    // texto6__1 recebe o nome do canal (sobrescreve a taxonomia de produto)
+    cv['texto6__1'] = cv['text_mkrrqsk6'];
+
+    if (cv['text_mkrrqsk6']) {
+      cv['text_mkrr8dta'] = (await this.getCodeByItemName(cv['text_mkrrqsk6']))
+        ?? cv['text_mkrr8dta'] ?? 'Email';
+    } else {
+      cv['text_mkrr8dta'] = cv['text_mkrr8dta'] ?? 'Email';
+    }
+
+    // Cliente
+    cv['text_mkrrg2hp'] = String(enrichedFormData.data[fieldMapping.cliente] ?? '').trim();
+    if (cv['text_mkrrg2hp']) {
+      cv['text_mkrrna7e'] = (await this.getCodeByItemName(cv['text_mkrrg2hp']))
+        ?? cv['text_mkrrna7e'] ?? 'NaN';
+    } else {
+      cv['text_mkrrna7e'] = cv['text_mkrrna7e'] ?? 'NaN';
+    }
+
+    // Campanha
+    cv['text_mkrra7df'] = String(enrichedFormData.data[fieldMapping.campanha] ?? '').trim();
+    if (cv['text_mkrra7df']) {
+      cv['text_mkrrcnpx'] = (await this.getCodeByItemName(cv['text_mkrra7df']))
+        ?? cv['text_mkrrcnpx'] ?? 'NaN';
+    } else {
+      cv['text_mkrrcnpx'] = cv['text_mkrrcnpx'] ?? 'NaN';
+    }
+
+    // Disparo
+    cv['text_mkrr9edr'] = String(enrichedFormData.data[fieldMapping.disparo] ?? '').trim();
+    if (cv['text_mkrr9edr']) {
+      cv['text_mkrrmjcy'] = (await this.getCodeByItemName(cv['text_mkrr9edr']))
+        ?? cv['text_mkrrmjcy'] ?? 'NaN';
+    } else {
+      cv['text_mkrrmjcy'] = cv['text_mkrrmjcy'] ?? 'NaN';
+    }
+
+    // Mecânica
+    cv['text_mkrrxf48'] = String(enrichedFormData.data[fieldMapping.mecanica] ?? '').trim();
+    if (cv['text_mkrrxf48']) {
+      cv['text_mkrrxpjd'] = (await this.getCodeByItemName(cv['text_mkrrxf48']))
+        ?? cv['text_mkrrxpjd'] ?? 'NaN';
+    } else {
+      cv['text_mkrrxpjd'] = cv['text_mkrrxpjd'] ?? 'NaN';
+    }
+
+    // Solicitante
+    let solicitanteValue = String(enrichedFormData.data[fieldMapping.solicitante] ?? '').trim();
+    if (solicitanteValue && /^\d+$/.test(solicitanteValue)) {
+      try {
+        const item = await this.mondayItemRepository.findOne({ where: { item_id: solicitanteValue } });
+        if (item) {
+          solicitanteValue = item.name || solicitanteValue;
+          cv['text_mkrrmmvv'] = item.code || 'NaN';
+        } else {
+          cv['text_mkrrmmvv'] = 'NaN';
+        }
+      } catch (error) {
+        console.warn(`Erro ao resolver área solicitante ${solicitanteValue}:`, error);
+        cv['text_mkrrmmvv'] = 'NaN';
+      }
+    } else if (solicitanteValue) {
+      cv['text_mkrrmmvv'] = (await this.getCodeByItemName(solicitanteValue)) ?? 'NaN';
+    } else {
+      cv['text_mkrrmmvv'] = 'NaN';
+    }
+    cv['text_mkrrxqng'] = solicitanteValue;
+
+    // Objetivo
+    cv['text_mkrrhdh6'] = String(enrichedFormData.data[fieldMapping.objetivo] ?? '').trim();
+    if (cv['text_mkrrhdh6']) {
+      cv['text_mkrrraz2'] = (await this.getCodeByItemName(cv['text_mkrrhdh6']))
+        ?? cv['text_mkrrraz2'] ?? 'NaN';
+    } else {
+      cv['text_mkrrraz2'] = cv['text_mkrrraz2'] ?? 'NaN';
+    }
+
+    // Produto
+    cv['text_mkrrfqft'] = String(enrichedFormData.data[fieldMapping.produto] ?? '').trim();
+    if (cv['text_mkrrfqft']) {
+      cv['text_mkrrjrnw'] = (await this.getCodeByItemName(cv['text_mkrrfqft'], produtoBoardId))
+        ?? cv['text_mkrrjrnw'] ?? 'NaN';
+    } else {
+      cv['text_mkrrjrnw'] = cv['text_mkrrjrnw'] ?? 'NaN';
+    }
+
+    // Subproduto - Buscar se existe subproduto associado ao produto
+    if (cv['text_mkrrfqft']) {
+      const subproductData = await this.mondayService.getSubproductByProduct(cv['text_mkrrfqft']);
+      if (subproductData) {
+        cv['text_mkw8et4w'] = subproductData.name;
+        cv['text_mkw8jfw0'] = subproductData.code;
+        console.log(`Subproduto encontrado para produto "${cv['text_mkrrfqft']}": ${subproductData.name} (${subproductData.code})`);
+      } else {
+        cv['text_mkw8et4w'] = cv['text_mkw8et4w'] ?? '';
+        cv['text_mkw8jfw0'] = cv['text_mkw8jfw0'] ?? '';
+      }
+    } else {
+      cv['text_mkw8et4w'] = cv['text_mkw8et4w'] ?? '';
+      cv['text_mkw8jfw0'] = cv['text_mkw8jfw0'] ?? '';
+    }
+
+    // Segmento
+    cv['text_mkrrt32q'] = String(enrichedFormData.data[fieldMapping.segmento] ?? '').trim();
+    if (cv['text_mkrrt32q']) {
+      cv['text_mkrrhdf8'] = (await this.getCodeByItemName(cv['text_mkrrt32q']))
+        ?? cv['text_mkrrhdf8'] ?? 'NaN';
+    } else {
+      cv['text_mkrrhdf8'] = cv['text_mkrrhdf8'] ?? 'NaN';
+    }
+
+    // Campos do subitem
+    cv['data__1'] = cv['data__1'] ?? subitem['data__1'] ?? '';
+    cv['n_meros__1'] = cv['n_meros__1'] ?? 1;
+    cv['texto__1'] = cv['texto__1'] ?? 'Teste';
+    cv['lista_suspensa5__1'] = cv['lista_suspensa5__1'] ?? 'Emocional';
+    cv['lista_suspensa53__1'] = cv['lista_suspensa53__1'] ?? { labels: ['Autoridade', 'Exclusividade'] };
+    if (subitem['n_meros_mkkchcmk'] !== undefined) {
+      cv['n_meros_mkkchcmk'] = subitem['n_meros_mkkchcmk'];
+    }
+
+    // Campo text_mkvgjh0w do subitem
+    const horaValue = subitem['conectar_quadros_mkkcnyr3'];
+    if (horaValue !== undefined) {
+      cv['text_mkvgjh0w'] = typeof horaValue === 'string' ? horaValue : String(horaValue);
+    }
+
+    // conectar_quadros8__1 deve ser o item_id do primeiro board
+    cv['conectar_quadros8__1'] = String(firstBoardItemId);
+
+    const composite = await this.buildCompositeTextFieldSecondBoard(enrichedFormData, firstBoardItemId) || '';
+    if (composite) {
+      cv['text_mkr5kh2r'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]); 
+      cv['text_mkr3jr1s'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]);
+    }
+
+    const texto6 = cv['texto6__1'] ? String(cv['texto6__1']) : '';
+    const item_name = `teste excluir${itemNameSuffix}${texto6 ? ' - ' + texto6 : ''}`;
+    return { item_name, column_values: cv };
   }
 }
 

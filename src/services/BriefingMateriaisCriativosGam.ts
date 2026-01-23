@@ -9,7 +9,7 @@ import {
   MondayFormMapping
 } from '../dto/MondayFormMappingDto';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
-import { BaseFormSubmissionService } from './BaseFormSubmissionService';
+import { BaseFormSubmissionService, SecondBoardFieldMapping } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
 import { toYYYYMMDD } from '../utils/dateFormatters';
 
@@ -46,6 +46,24 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
 
   constructor() {
     super();
+  }
+
+  /**
+   * Retorna o mapeamento de campos GAM para o segundo board
+   */
+  protected getSecondBoardFieldMapping(): SecondBoardFieldMapping {
+    return {
+      canal: 'text_mkvhgbp8',
+      cliente: 'text_mkvhz8g3',
+      campanha: 'text_mkvhedf5',
+      disparo: 'text_mkvhqgvn',
+      mecanica: 'text_mkvhv5ma',
+      solicitante: 'text_mkvhvcw4',
+      objetivo: 'text_mkvh2z7j',
+      produto: 'text_mkvhwyzr',
+      segmento: 'text_mkvhammc',
+      useCanalFromSubitem: false
+    };
   }
 
   /**
@@ -121,7 +139,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
             try {
               const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
               if (ppl) {
-                (resolvedConnectColumns as any)["pessoas3__1"] = ppl;
+                resolvedConnectColumns["pessoas3__1"] = ppl;
               }
             } catch (e) {
               console.warn('Falha ao montar pessoas3__1 (primeiro board):', e);
@@ -131,7 +149,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
             try {
               const compositeFirstBoard = await this.buildCompositeTextField(enrichedFormData, mondayItemId);
               if (compositeFirstBoard) {
-                (resolvedConnectColumns as any)["text_mkr3znn0"] = compositeFirstBoard;
+                resolvedConnectColumns["text_mkr3znn0"] = compositeFirstBoard;
               }
             } catch (e) {
               console.warn('Falha ao montar text_mkr3znn0 (segundo envio do primeiro board):', e);
@@ -207,8 +225,8 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
     const results: string[] = [];
     const subitems: SubitemData[] = enrichedFormData?.data?.__SUBITEMS__ ?? [];
 
-    for (let idx = 0; idx < subitems.length; idx++) {
-      const sub = subitems[idx];
+    let idx = 0;
+    for (const sub of subitems) {
       const initial = await this.buildSecondBoardInitialPayloadFromSubitem(sub, enrichedFormData, firstBoardAllColumnValues, firstBoardItemId);
 
       const itemNameSecond = initial.item_name || 'teste excluir GAM';
@@ -245,7 +263,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
         try {
           const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
           if (ppl) {
-            (resolved as any)["pessoas3__1"] = ppl;
+            resolved["pessoas3__1"] = ppl;
           }
         } catch (e) {
           console.warn('Falha ao montar pessoas3__1 (segundo board GAM):', e);
@@ -280,238 +298,28 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
       }
 
       results.push(secondItemId);
+      idx++;
     }
 
     return results;
   }
 
-  // Novo: monta payload do segundo board a partir do subitem (sem conectar_quadros*)
+  // Monta payload do segundo board usando método da classe base
   private async buildSecondBoardInitialPayloadFromSubitem(
     subitem: SubitemData,
     enrichedFormData: FormSubmissionData,
     firstBoardAllColumnValues: Record<string, any>,
     firstBoardItemId: string
   ): Promise<{ item_name: string; column_values: Record<string, any> }> {
-    const cv: Record<string, any> = {};
-
-    // Buscar board_id do board "Produto" uma vez para evitar colisão
-    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
-    const produtoBoardId = produtoBoard?.id;
-
-    // Correlações submissão=>segundo (prioriza subitem, depois dado do formulário)
-    for (const m of this.secondBoardCorrelationFromSubmission) {
-      const from = (m.id_submission || '').trim();
-      const to = (m.id_second_board || '').trim();
-      if (!from || !to) continue;
-      let v: any = (subitem as any)[from];
-      if (v === undefined) {
-        v = (enrichedFormData?.data as any)?.[from];
-      }
-      if (v !== undefined) cv[to] = v;
-    }
-
-    // Correlações primeiro=>segundo
-    for (const m of this.secondBoardCorrelationFromFirst) {
-      const from = (m.id_first_board || '').trim();
-      const to = (m.id_second_board || '').trim();
-      if (!from || !to) continue;
-      const v = firstBoardAllColumnValues[from];
-      if (v !== undefined) cv[to] = v;
-    }
-
-    // text_mkr5kh2r e text_mkr3jr1s: ambos recebem o valor da fórmula de text_mkr3znn0
-    
-    // date_mkrk5v4c: data de hoje no formato date da Monday
-    if (cv['date_mkrk5v4c'] === undefined) {
-      const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const iso = `${yyyy}-${mm}-${dd}`;
-      cv['date_mkrk5v4c'] = this.formatDateValue(iso);
-    }
-    // text_mkr3v9k3: valor de data__1 do subitem do formulário de submissão
-    if (cv['text_mkr3v9k3'] === undefined && (subitem as any)['data__1'] !== undefined) {
-      cv['text_mkr3v9k3'] = String((subitem as any)['data__1']);
-    }
-
-    // pessoas5__1 do pessoas__1
-    if (firstBoardAllColumnValues['pessoas__1']) {
-      cv['pessoas5__1'] = firstBoardAllColumnValues['pessoas__1'];
-    }
-
-    // Defaults conforme exemplo
-    // text_mkrr6jkh deve vir do item_id do primeiro board
-    cv['text_mkrr6jkh'] = String(firstBoardItemId);
-    
-    // Construir taxonomia: código do produto + código do subproduto (se encontrado)
-    const productCode = String(subitem.texto__1);
-    const productName = String(subitem.conectar_quadros87__1);
-    
-    // Buscar código do subproduto associado ao produto
-    const subproductCode = await this.mondayService.getSubproductCodeByProduct(productName);
-    
-    // Construir taxonomia final: produto_subproduto (se encontrado) ou apenas código do produto
-    if (subproductCode) {
-      cv['texto6__1'] = `${productCode}_${subproductCode}`;
-      console.log(`Taxonomia criada com subproduto: ${productCode}_${subproductCode} (produto: ${productName})`);
-    } else {
-      cv['texto6__1'] = productCode;
-      console.log(`Subproduto não encontrado para produto "${productName}", usando apenas código do produto: ${productCode}`);
-    }
-
-    // Usar os novos campos de texto diretos (text_mkvh*) ao invés de lookup
-    // Canal
-    cv['text_mkrrqsk6'] = String(enrichedFormData.data['text_mkvhgbp8'] ?? '')
-      .trim();
-
-    // texto6__1 recebe o nome do canal (sobrescreve a taxonomia de produto)
-    cv['texto6__1'] = cv['text_mkrrqsk6'];
-
-    if (cv['text_mkrrqsk6']) {
-      cv['text_mkrr8dta'] = (await this.getCodeByItemName(cv['text_mkrrqsk6']))
-        ?? cv['text_mkrr8dta'] ?? 'Email';
-    } else {
-      cv['text_mkrr8dta'] = cv['text_mkrr8dta'] ?? 'Email';
-    }
-
-    // Cliente
-    cv['text_mkrrg2hp'] = String(enrichedFormData.data['text_mkvhz8g3'] ?? '')
-      .trim();
-    if (cv['text_mkrrg2hp']) {
-      cv['text_mkrrna7e'] = (await this.getCodeByItemName(cv['text_mkrrg2hp']))
-        ?? cv['text_mkrrna7e'] ?? 'NaN';
-    } else {
-      cv['text_mkrrna7e'] = cv['text_mkrrna7e'] ?? 'NaN';
-    }
-
-    // Campanha
-    cv['text_mkrra7df'] = String(enrichedFormData.data['text_mkvhedf5'] ?? '')
-      .trim();
-    if (cv['text_mkrra7df']) {
-      cv['text_mkrrcnpx'] = (await this.getCodeByItemName(cv['text_mkrra7df']))
-        ?? cv['text_mkrrcnpx'] ?? 'NaN';
-    } else {
-      cv['text_mkrrcnpx'] = cv['text_mkrrcnpx'] ?? 'NaN';
-    }
-
-    // Disparo
-    cv['text_mkrr9edr'] = String(enrichedFormData.data['text_mkvhqgvn'] ?? '')
-      .trim();
-    if (cv['text_mkrr9edr']) {
-      cv['text_mkrrmjcy'] = (await this.getCodeByItemName(cv['text_mkrr9edr']))
-        ?? cv['text_mkrrmjcy'] ?? 'NaN';
-    } else {
-      cv['text_mkrrmjcy'] = cv['text_mkrrmjcy'] ?? 'NaN';
-    }
-
-    // Mecânica
-    cv['text_mkrrxf48'] = String(enrichedFormData.data['text_mkvhv5ma'] ?? '')
-      .trim();
-    if (cv['text_mkrrxf48']) {
-      cv['text_mkrrxpjd'] = (await this.getCodeByItemName(cv['text_mkrrxf48']))
-        ?? cv['text_mkrrxpjd'] ?? 'NaN';
-    } else {
-      cv['text_mkrrxpjd'] = cv['text_mkrrxpjd'] ?? 'NaN';
-    }
-
-    // Solicitante
-    let solicitanteValue = String(enrichedFormData.data['text_mkvhvcw4'] ?? '').trim();
-    if (solicitanteValue && /^\d+$/.test(solicitanteValue)) {
-      try {
-        const item = await this.mondayItemRepository.findOne({ where: { item_id: solicitanteValue } });
-        if (item) {
-          solicitanteValue = item.name || solicitanteValue;
-          cv['text_mkrrmmvv'] = item.code || 'NaN';
-        } else {
-          cv['text_mkrrmmvv'] = 'NaN';
-        }
-      } catch (error) {
-        console.warn(`Erro ao resolver área solicitante ${solicitanteValue}:`, error);
-        cv['text_mkrrmmvv'] = 'NaN';
-      }
-    } else if (solicitanteValue) {
-      cv['text_mkrrmmvv'] = (await this.getCodeByItemName(solicitanteValue)) ?? 'NaN';
-    } else {
-      cv['text_mkrrmmvv'] = 'NaN';
-    }
-    cv['text_mkrrxqng'] = solicitanteValue;
-
-    // Objetivo
-    cv['text_mkrrhdh6'] = String(enrichedFormData.data['text_mkvh2z7j'] ?? '')
-      .trim();
-    if (cv['text_mkrrhdh6']) {
-      cv['text_mkrrraz2'] = (await this.getCodeByItemName(cv['text_mkrrhdh6']))
-        ?? cv['text_mkrrraz2'] ?? 'NaN';
-    } else {
-      cv['text_mkrrraz2'] = cv['text_mkrrraz2'] ?? 'NaN';
-    }
-
-    // Produto
-    cv['text_mkrrfqft'] = String(enrichedFormData.data['text_mkvhwyzr'] ?? '')
-      .trim();
-    if (cv['text_mkrrfqft']) {
-      cv['text_mkrrjrnw'] = (await this.getCodeByItemName(cv['text_mkrrfqft'], produtoBoardId))
-        ?? cv['text_mkrrjrnw'] ?? 'NaN';
-    } else {
-      cv['text_mkrrjrnw'] = cv['text_mkrrjrnw'] ?? 'NaN';
-    }
-
-    // Subproduto - Buscar se existe subproduto associado ao produto
-    if (cv['text_mkrrfqft']) {
-      const subproductData = await this.mondayService.getSubproductByProduct(cv['text_mkrrfqft']);
-      if (subproductData) {
-        cv['text_mkw8et4w'] = subproductData.name; // Referência Subproduto
-        cv['text_mkw8jfw0'] = subproductData.code; // Código Subproduto
-        console.log(`Subproduto encontrado para produto "${cv['text_mkrrfqft']}": ${subproductData.name} (${subproductData.code})`);
-      } else {
-        cv['text_mkw8et4w'] = cv['text_mkw8et4w'] ?? '';
-        cv['text_mkw8jfw0'] = cv['text_mkw8jfw0'] ?? '';
-      }
-    } else {
-      cv['text_mkw8et4w'] = cv['text_mkw8et4w'] ?? '';
-      cv['text_mkw8jfw0'] = cv['text_mkw8jfw0'] ?? '';
-    }
-
-    // Segmento
-    cv['text_mkrrt32q'] = String(enrichedFormData.data['text_mkvhammc'] ?? '')
-      .trim();
-    if (cv['text_mkrrt32q']) {
-      cv['text_mkrrhdf8'] = (await this.getCodeByItemName(cv['text_mkrrt32q']))
-        ?? cv['text_mkrrhdf8'] ?? 'NaN';
-    } else {
-      cv['text_mkrrhdf8'] = cv['text_mkrrhdf8'] ?? 'NaN';
-    }
-
-    // Campos do subitem
-    cv['data__1'] = cv['data__1'] ?? (subitem as any)['data__1'] ?? '';
-    cv['n_meros__1'] = cv['n_meros__1'] ?? 1;
-    cv['texto__1'] = cv['texto__1'] ?? 'Teste';
-    cv['lista_suspensa5__1'] = cv['lista_suspensa5__1'] ?? 'Emocional';
-    cv['lista_suspensa53__1'] = cv['lista_suspensa53__1'] ?? { labels: ['Autoridade', 'Exclusividade'] };
-    if ((subitem as any)['n_meros_mkkchcmk'] !== undefined) {
-      cv['n_meros_mkkchcmk'] = (subitem as any)['n_meros_mkkchcmk'];
-    }
-
-    // Campo text_mkvgjh0w do subitem: sempre enviado no primeiro envio do segundo board, valor igual ao conectar_quadros_mkkcnyr3 do form-submission
-    const horaValue = (subitem as any)['conectar_quadros_mkkcnyr3'];
-    if (horaValue !== undefined) {
-      cv['text_mkvgjh0w'] = typeof horaValue === 'string' ? horaValue : String(horaValue);
-    }
-  // Removido: não enviar conectar_quadros87__1 no segundo envio
-  // conectar_quadros8__1 deve ser o item_id do primeiro board
-  cv['conectar_quadros8__1'] = String(firstBoardItemId);
-
-  const composite = await this.buildCompositeTextFieldSecondBoard(enrichedFormData, firstBoardItemId) || '';
-    if (composite) {
-      cv['text_mkr5kh2r'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]); 
-    
-      cv['text_mkr3jr1s'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]);
-    }
-
-  const texto6 = cv['texto6__1'] ? String(cv['texto6__1']) : '';
-  const item_name = `teste excluir GAM${texto6 ? ' - ' + texto6 : ''}`;
-  return { item_name, column_values: cv };
+    return this.buildSecondBoardPayloadFromSubitem(
+      subitem,
+      enrichedFormData,
+      firstBoardAllColumnValues,
+      firstBoardItemId,
+      this.secondBoardCorrelationFromSubmission,
+      this.secondBoardCorrelationFromFirst,
+      ' GAM'
+    );
   }
 
   // Novo: limita as colunas conectar_quadros ao conjunto exigido para o segundo board
@@ -670,7 +478,7 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
         dateStr = normalizedDateObj.date;
       } else {
         // Fallbacks: pegar direto do payload de entrada, como string ou objeto { date }
-        const raw = (formData.data as any)?.['date_mkr6nj1f'];
+        const raw = formData.data?.['date_mkr6nj1f'];
         if (raw && typeof raw === 'object' && typeof raw.date === 'string') {
           dateStr = raw.date;
         } else if (typeof raw === 'string') {
