@@ -1485,7 +1485,8 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
     });
   });
 
-  describe('pickSecondBoardConnectColumns', () => {
+  // TODO: Método pickSecondBoardConnectColumns foi removido durante refatoração
+  describe.skip('pickSecondBoardConnectColumns', () => {
     it('should filter only second board connect columns', () => {
       const connectColumnsRaw = {
         conectar_quadros: { item_ids: ['1'] },
@@ -2594,7 +2595,7 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
 
   });
   
-  describe('buildSecondBoardInitialPayloadFromSubitem', () => {
+  describe('buildSecondBoardPayloadFromSubitem', () => {
     const baseFirstBoardValues = {
       pessoas__1: { personsAndTeams: [{ id: '1', kind: 'person' as const }] },
       text_mkr3znn0: 'BASE-COMPOSITE'
@@ -2638,11 +2639,14 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
         }
       };
 
-      const result = await (service as any).buildSecondBoardInitialPayloadFromSubitem(
+      const result = await (service as any).buildSecondBoardPayloadFromSubitem(
         subitem,
         enrichedFormData,
         baseFirstBoardValues,
-        'ITEM-123'
+        'ITEM-123',
+        [],
+        [],
+        ''
       );
 
       expect(result.item_name).toContain('Email');
@@ -2681,11 +2685,14 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
         data: {}
       };
 
-      const result = await (service as any).buildSecondBoardInitialPayloadFromSubitem(
+      const result = await (service as any).buildSecondBoardPayloadFromSubitem(
         subitem,
         enrichedFormData,
         {},
-        'ITEM-999'
+        'ITEM-999',
+        [],
+        [],
+        ''
       );
 
       expect(result.column_values.text_mkrr8dta).toBe('Email');
@@ -2726,21 +2733,27 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
 
       // Primeiro resolve sem item encontrado
       mockMondayItemRepository.findOne.mockResolvedValueOnce(undefined as any);
-      const resultMissing = await (service as any).buildSecondBoardInitialPayloadFromSubitem(
+      const resultMissing = await (service as any).buildSecondBoardPayloadFromSubitem(
         subitem,
         enrichedFormData,
         {},
-        'ITEM-NA'
+        'ITEM-NA',
+        [],
+        [],
+        ''
       );
       expect(resultMissing.column_values.text_mkrrmmvv).toBe('NaN');
 
       // Depois força exceção para cobrir bloco de captura
       mockMondayItemRepository.findOne.mockRejectedValueOnce(new Error('lookup failure'));
-      const resultError = await (service as any).buildSecondBoardInitialPayloadFromSubitem(
+      const resultError = await (service as any).buildSecondBoardPayloadFromSubitem(
         subitem,
         enrichedFormData,
         {},
-        'ITEM-ERR'
+        'ITEM-ERR',
+        [],
+        [],
+        ''
       );
       expect(resultError.column_values.text_mkrrmmvv).toBe('NaN');
       expect(warnSpy).toHaveBeenCalled();
@@ -3118,7 +3131,7 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should handle buildSecondBoardInitialPayloadFromSubitem error (line 580-583)', async () => {
+    it('should handle buildSecondBoardPayloadFromSubitem error (line 580-583)', async () => {
       const formData: FormSubmissionData = {
         id: 'second-board-error',
         timestamp: '2024-01-01T00:00:00Z',
@@ -3140,7 +3153,7 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
         data: { create_item: { id: '99999' } }
       });
 
-      jest.spyOn(service as any, 'buildSecondBoardInitialPayloadFromSubitem').mockRejectedValueOnce(
+      jest.spyOn(service as any, 'buildSecondBoardPayloadFromSubitem').mockRejectedValueOnce(
         new Error('Build payload failed')
       );
 
@@ -3254,3 +3267,4 @@ describe('DisparoCRMBriefingMateriaisCriativosService', () => {
   });
 
 });
+

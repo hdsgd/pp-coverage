@@ -1433,5 +1433,119 @@ export abstract class BaseFormSubmissionService {
     const item_name = `teste excluir${itemNameSuffix}${texto6 ? ' - ' + texto6 : ''}`;
     return { item_name, column_values: cv };
   }
+
+  /**
+   * Método genérico para processar envio ao segundo board para cada subitem.
+   * Consolida lógica duplicada entre serviços GAM e CRM.
+   */
+  protected async processSecondBoardForSubitems(
+    enrichedFormData: FormSubmissionData,
+    firstBoardAllColumnValues: Record<string, any>,
+    fallbackItemName: string,
+    firstBoardItemId: string,
+    secondBoardId: string,
+    secondBoardGroupId: string,
+    connectColumns: string[],
+    itemNameSuffix: string = '',
+    serviceLabel: string = ''
+  ): Promise<string[]> {
+    const results: string[] = [];
+    const subitems: SubitemData[] = enrichedFormData?.data?.__SUBITEMS__ ?? [];
+
+    let idx = 0;
+    for (const sub of subitems) {
+      const initial = await this.buildSecondBoardPayloadFromSubitem(
+        sub,
+        enrichedFormData,
+        firstBoardAllColumnValues,
+        firstBoardItemId,
+        (this as any).secondBoardCorrelationFromSubmission || [],
+        (this as any).secondBoardCorrelationFromFirst || [],
+        itemNameSuffix
+      );
+
+      const itemNameSecond = initial.item_name || `teste excluir${itemNameSuffix}`;
+      const { baseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(initial.column_values);
+      
+      // Filtrar apenas as colunas conectar_quadros necess\u00e1rias
+      const filteredConnect: Record<string, any> = {};
+      for (const k of connectColumns) {
+        if (connectColumnsRaw[k] !== undefined) {
+          filteredConnect[k] = connectColumnsRaw[k];
+        }
+      }
+
+      // Pre-data por subitem (primeiro envio)
+      try {
+        await this.savePreObjectLocally(
+          {
+            board_id: secondBoardId,
+            item_name: itemNameSecond,
+            column_values: baseColumns,
+          },
+          `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_predat-idx_${idx}`
+        );
+      } catch (e) {
+        console.warn(`Falha ao gerar/salvar pre-data do segundo board ${serviceLabel} (subitem):`, e);
+      }
+
+      // Cria\u00e7\u00e3o do item
+      const secondItemId = await this.createMondayItem(
+        secondBoardId,
+        secondBoardGroupId,
+        itemNameSecond || fallbackItemName,
+        baseColumns
+      );
+      console.log(`Segundo board ${serviceLabel}: item criado para subitem ${idx} com ID ${secondItemId} (primeiro envio).`);
+
+      // Atualiza\u00e7\u00e3o das colunas conectar_quadros*
+      try {
+        const resolved = await this.resolveConnectBoardColumns(filteredConnect);
+        
+        // Adicionar pessoas3__1 (People) com base em lookup_mkrt36cj -> monday_items.team (segunda submiss\u00e3o do segundo board)
+        try {
+          const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
+          if (ppl) {
+            resolved["pessoas3__1"] = ppl;
+          }
+        } catch (e) {
+          console.warn(`Falha ao montar pessoas3__1 (segundo board ${serviceLabel}):`, e);
+        }
+        
+        if (Object.keys(resolved).length > 0) {
+          await this.saveObjectLocally(
+            {
+              board_id: secondBoardId,
+              item_id: secondItemId,
+              column_values: resolved,
+            },
+            `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_connect_columns_idx_${idx}`
+          );
+
+          await this.savePreObjectLocally(
+            {
+              board_id: secondBoardId,
+              item_id: secondItemId,
+              column_values: resolved,
+            },
+            `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_second_send_predat-idx_${idx}`
+          );
+
+          await this.mondayService.changeMultipleColumnValues(
+            secondBoardId,
+            secondItemId,
+            resolved
+          );
+        }
+      } catch (e) {
+        console.error(`Falha ao atualizar colunas conectar_quadros no segundo board ${serviceLabel} (subitem):`, e);
+      }
+
+      results.push(secondItemId);
+      idx++;
+    }
+
+    return results;
+  }
 }
 

@@ -1,7 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { buildSafePath } from '../utils/pathSecurity';
-import type { SubitemData } from '../dto/MondayFormMappingDto';
 import {
   FormSubmissionData,
   BRIEFING_MATERIAIS_CRIATIVOS_GAM_FORM_MAPPING,
@@ -215,133 +211,34 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
 
 
 
-  // Novo: fluxo para enviar ao segundo board para cada subitem
+  // Novo: fluxo para enviar ao segundo board para cada subitem (usa implementação genérica da base)
   private async processSecondBoardSendsForSubitems(
     enrichedFormData: FormSubmissionData,
     firstBoardAllColumnValues: Record<string, any>,
     fallbackItemName: string,
     firstBoardItemId: string
   ): Promise<string[]> {
-    const results: string[] = [];
-    const subitems: SubitemData[] = enrichedFormData?.data?.__SUBITEMS__ ?? [];
-
-    let idx = 0;
-    for (const sub of subitems) {
-      const initial = await this.buildSecondBoardInitialPayloadFromSubitem(sub, enrichedFormData, firstBoardAllColumnValues, firstBoardItemId);
-
-      const itemNameSecond = initial.item_name || 'teste excluir GAM';
-      const { baseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(initial.column_values);
-      const filteredConnect = this.pickSecondBoardConnectColumns(connectColumnsRaw);
-
-      // Pre-data por subitem (primeiro envio)
-      try {
-        await this.savePreObjectLocally(
-          {
-            board_id: BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
-            item_name: itemNameSecond,
-            column_values: baseColumns,
-          },
-          `${enrichedFormData.id || 'submission'}_gam_second_board_predat-idx_${idx}`
-        );
-      } catch (e) {
-        console.warn('Falha ao gerar/salvar pre-data do segundo board GAM (subitem):', e);
-      }
-
-      // Criação do item
-      const secondItemId = await this.createMondayItem(
-        BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
-        BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_GROUP_ID,
-        itemNameSecond || fallbackItemName,
-        baseColumns
-      );
-  console.log(`Segundo board GAM: item criado para subitem ${idx} com ID ${secondItemId} (primeiro envio).`);
-
-      // Atualização das colunas conectar_quadros*
-      try {
-        const resolved = await this.resolveConnectBoardColumns(filteredConnect);
-        // Adicionar pessoas3__1 (People) com base em lookup_mkrt36cj -> monday_items.team (segunda submissão do segundo board)
-        try {
-          const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
-          if (ppl) {
-            resolved["pessoas3__1"] = ppl;
-          }
-        } catch (e) {
-          console.warn('Falha ao montar pessoas3__1 (segundo board GAM):', e);
-        }
-        if (Object.keys(resolved).length > 0) {
-          await this.saveObjectLocally(
-            {
-              board_id: BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_gam_second_board_connect_columns_idx_${idx}`
-          );
-
-          await this.savePreObjectLocally(
-            {
-              board_id: BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_gam_second_board_second_send_predat-idx_${idx}`
-          );
-
-          await this.mondayService.changeMultipleColumnValues(
-            BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
-            secondItemId,
-            resolved
-          );
-        }
-      } catch (e) {
-        console.error('Falha ao atualizar colunas conectar_quadros no segundo board GAM (subitem):', e);
-      }
-
-      results.push(secondItemId);
-      idx++;
-    }
-
-    return results;
-  }
-
-  // Monta payload do segundo board usando método da classe base
-  private async buildSecondBoardInitialPayloadFromSubitem(
-    subitem: SubitemData,
-    enrichedFormData: FormSubmissionData,
-    firstBoardAllColumnValues: Record<string, any>,
-    firstBoardItemId: string
-  ): Promise<{ item_name: string; column_values: Record<string, any> }> {
-    return this.buildSecondBoardPayloadFromSubitem(
-      subitem,
+    return this.processSecondBoardForSubitems(
       enrichedFormData,
       firstBoardAllColumnValues,
+      fallbackItemName,
       firstBoardItemId,
-      this.secondBoardCorrelationFromSubmission,
-      this.secondBoardCorrelationFromFirst,
-      ' GAM'
+      BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_ID,
+      BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_GROUP_ID,
+      BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_CONNECT_COLUMNS,
+      ' GAM',
+      'gam'
     );
-  }
-
-  // Novo: limita as colunas conectar_quadros ao conjunto exigido para o segundo board
-  private pickSecondBoardConnectColumns(connectColumnsRaw: Record<string, any>): Record<string, any> {
-    const filtered: Record<string, any> = {};
-    for (const k of BriefingMateriaisCriativosGamService.GAM_SECOND_BOARD_CONNECT_COLUMNS) {
-      if (connectColumnsRaw[k] !== undefined) filtered[k] = connectColumnsRaw[k];
-    }
-    return filtered;
   }  
 
 
 
 
   /**
-   * Constrói o objeto column_values para a mutation da Monday.com
+   * Retorna campos excluídos específicos para GAM
    */
-  protected async buildColumnValues(formData: FormSubmissionData, mapping: MondayFormMapping): Promise<Record<string, any>> {
-    const columnValues: Record<string, any> = {};
-
-    // Campos excluídos da submissão para Monday.com
-    const excludedFields = [
+  protected getExcludedFields(): string[] {
+    return [
       'formTitle', 'id', 'timestamp', '__SUBITEMS__', 'pessoas5__1',
       // Excluir campos GAM originais que serão mapeados via column_mappings
       'gam_start_date', 'gam_end_date', 'gam_client_type', 'gam_campaign_type',
@@ -350,6 +247,16 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
       'gam_audience_format', 'gam_channels', 'gam_observations', 'gam_other_campaign_type',
       'gam_dispatch_type', 'enviar_arquivo__1', 'arquivos'
     ];
+  }
+
+  /**
+   * Constrói o objeto column_values para a mutation da Monday.com
+   */
+  protected async buildColumnValues(formData: FormSubmissionData, mapping: MondayFormMapping): Promise<Record<string, any>> {
+    const columnValues: Record<string, any> = {};
+
+    // Campos excluídos da submissão para Monday.com
+    const excludedFields = this.getExcludedFields();
 
     // Verificar se há subitems e encontrar o com data mais próxima de hoje
     let closestSubitemDate: string | undefined;
@@ -564,267 +471,6 @@ export class BriefingMateriaisCriativosGamService extends BaseFormSubmissionServ
    */
 
 
-  /**
-   * Formata valor baseado no tipo de coluna da Monday.com
-   */
-  protected formatValueForMondayColumn(value: any, columnType: MondayColumnType): any {
-    if (value === null || value === undefined) {
-      return undefined;
-    }
-
-    switch (columnType) {
-      case MondayColumnType.TEXT:
-        return String(value);
-
-      case MondayColumnType.DATE:
-        return this.formatDateValue(value);
-
-      case MondayColumnType.NUMBER: {
-        const num = Number(value);
-        return Number.isNaN(num) ? undefined : num;
-      }
-
-      case MondayColumnType.STATUS:
-        return this.formatStatusValue(value);
-
-      case MondayColumnType.CHECKBOX:
-        return { checked: Boolean(value) };
-
-      case MondayColumnType.PEOPLE:
-        // Para campos de pessoas, o valor deve ser um array de IDs ou nomes
-        if (Array.isArray(value)) {
-          return { personsAndTeams: value.map(person => ({ id: String(person), kind: 'person' as const })) };
-        } else if (typeof value === 'string') {
-          // Se for um nome, retorna como está (Monday tentará resolver)
-          return { personsAndTeams: [{ id: value, kind: 'person' }] };
-        } else if (value && typeof value === 'object') {
-          const v: any = value;
-          if (Array.isArray(v.personsAndTeams)) {
-            const teams = v.personsAndTeams.map((p: any) => ({ id: String(p.id), kind: 'person' as const }));
-            return { personsAndTeams: teams };
-          }
-        }
-        return undefined;
-
-      case MondayColumnType.DROPDOWN:
-        return this.formatDropdownValue(value);
-
-      case MondayColumnType.TAGS:
-        return this.formatTagsValue(value);
-
-      case MondayColumnType.BOARD_RELATION:
-        return this.formatBoardRelationValue(value);
-
-      default:
-        return String(value);
-    }
-  }
-
-  /**
-   * Formata valores de data para Monday.com
-   */
-  protected formatDateValue(value: any): any {
-    if (typeof value === 'string') {
-      // Converter de DD/MM/YYYY para YYYY-MM-DD se necessário
-      const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-      const dateMatch = dateRegex.exec(value);
-      if (dateMatch) {
-        const [, day, month, year] = dateMatch;
-        return { date: `${year}-${month}-${day}` };
-      }
-      // Se já está no formato YYYY-MM-DD
-      const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (isoDateRegex.test(value)) {
-        return { date: value };
-      }
-    }
-    return { date: value };
-  }
-
-  /**
-   * Formata valores de tags para Monday.com
-   */
-  protected formatTagsValue(value: any): any {
-    if (Array.isArray(value)) {
-      return { tag_ids: value };
-    }
-    return { tag_ids: [value] };
-  }
-
-  /**
-   * Formata valores de board relation para Monday.com
-   */
-  protected formatBoardRelationValue(value: any): any {
-    if (!value) return undefined;
-    
-    // Se já é um objeto com item_ids, retorna como está
-    if (typeof value === 'object' && Array.isArray(value.item_ids)) {
-      return { item_ids: value.item_ids.map((id: any) => Number.parseInt(String(id), 10)) };
-    }
-    
-    // Se é uma string ou número (ID do item), retorna como array
-    if (typeof value === 'string' || typeof value === 'number') {
-      const itemId = Number.parseInt(String(value), 10);
-      if (!Number.isNaN(itemId)) {
-        return { item_ids: [itemId] };
-      }
-    }
-    
-    // Se é um array, assume que são IDs de item
-    if (Array.isArray(value)) {
-      const itemIds = value.map(id => Number.parseInt(String(id), 10)).filter(id => !Number.isNaN(id));
-      if (itemIds.length > 0) {
-        return { item_ids: itemIds };
-      }
-    }
-    
-    return undefined;
-  }
-
-
-
-
-
- 
-
-  /**
-   * Cria um item na Monday.com usando GraphQL mutation
-   */
-  protected async createMondayItem(
-    boardId: string,
-    groupId: string,
-    itemName: string,
-    columnValues: Record<string, any>
-  ): Promise<string> {
-    const columnValuesJson = JSON.stringify(columnValues).replaceAll("\"", '\\"');
-    
-    const mutation = `
-      mutation {
-        create_item(
-          board_id: ${boardId},
-          group_id: "${groupId}",
-          item_name: "${itemName.replaceAll("\"", '\\"')}",
-          create_labels_if_missing: true,
-          column_values: "${columnValuesJson}"
-        ) {
-          id
-          name
-          group { id }
-        }
-      }
-    `;
-
-    console.log('Executando mutation:', mutation);
-
-    try {
-      const response = await this.mondayService.makeGraphQLRequest(mutation);
-      
-      if (!response.data?.create_item?.id) {
-        throw new Error('Resposta inválida da Monday.com - ID do item não retornado');
-      }
-
-      return response.data.create_item.id;
-
-    } catch (error) {
-      console.error('Erro na mutation create_item:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Formata valores de STATUS com lógica inteligente:
-   * - Se é um número (ID/index), usa { index: number }
-   * - Se é texto, usa { label: string }
-   */
-  protected formatStatusValue(value: any): any {
-    const statusValue = String(value).trim();
-    
-    // Se é um número (ID/index), usar index
-    if (/^\d+$/.test(statusValue)) {
-      return { index: Number.parseInt(statusValue, 10) };
-    }
-    
-    // Se é texto, usar label (Monday tentará resolver)
-    return { label: statusValue };
-  }
-
-  /**
-   * Formata valores de DROPDOWN seguindo a API Monday.com:
-   * - Se todos são números (IDs) → {"ids": [1, 2, 3]}
-   * - Se algum é texto → {"labels": ["Alta", "Texto"]}
-   */
-  protected formatDropdownValue(value: any): any {
-    const values = Array.isArray(value) ? value : [value];
-    const processedNumbers: number[] = [];
-    const processedStrings: string[] = [];
-    
-    for (const val of values) {
-      const strVal = String(val).trim();
-      if (!strVal) continue;
-      
-      // Se é um número (ID), adicionar aos números
-      if (/^\d+$/.test(strVal)) {
-        processedNumbers.push(Number.parseInt(strVal, 10));
-      } else {
-        // Se é texto, adicionar às strings (labels)
-        processedStrings.push(strVal);
-      }
-    }
-    
-    // Se temos strings, usar "labels" (inclui números convertidos para string)
-    if (processedStrings.length > 0) {
-      const allLabels = [...processedStrings, ...processedNumbers.map(String)];
-      return { labels: allLabels };
-    }
-    
-    // Se só temos números, usar "ids"
-    if (processedNumbers.length > 0) {
-      return { ids: processedNumbers };
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Processa upload de arquivo se o campo enviar_arquivo__1 contém um path do sistema
-   */
-  protected async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
-    try {
-      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
-
-      if (!fileName || typeof fileName !== 'string') {
-        return;
-      }
-
-      // Construir o caminho completo do arquivo na pasta MondayFiles (com sanitização para prevenir Path Traversal)
-      const uploadDir = path.join(__dirname, '../../MondayFiles');
-      const filePath = buildSafePath(uploadDir, fileName);
-
-      console.log(`Processando upload de arquivo: ${fileName} -> ${filePath} para item ${itemId}`);
-
-      // Verificar se o arquivo existe
-      if (!fs.existsSync(filePath)) {
-        console.error(`Arquivo não encontrado: ${filePath}`);
-        return;
-      }
-
-      // Upload do arquivo diretamente para a coluna do Monday.com
-      const fileId = await this.mondayService.uploadFile(filePath, itemId, 'enviar_arquivo__1');
-
-      console.log(`Arquivo ${fileName} enviado com sucesso. File ID: ${fileId}`);
-
-      // Apagar o arquivo local após upload bem-sucedido
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`Arquivo local removido: ${filePath}`);
-      } catch (unlinkError) {
-        console.error(`Erro ao remover arquivo local: ${filePath}`, unlinkError);
-      }
-
-    } catch (error) {
-      console.error('Erro ao processar upload de arquivo:', error);
-      // Não propagar o erro para não quebrar o fluxo principal
-    }
-  }
+  // Métodos de formatação herdados da classe base (removidos para eliminar duplicação)
 
 }

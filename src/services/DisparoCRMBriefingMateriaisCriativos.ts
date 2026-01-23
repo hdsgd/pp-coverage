@@ -1,13 +1,9 @@
-import { buildSafePath } from '../utils/pathSecurity';
 import { 
   FormSubmissionData, 
   MondayFormMapping, 
   DISPARO_CRM_BRIEFING_FORM_MAPPING
 } from '../dto/MondayFormMappingDto';
 import { mapFormSubmissionToMondayData } from '../utils/mondayFieldMappings';
-import type { SubitemData } from '../dto/MondayFormMappingDto';
-import fs from 'node:fs';
-import path from 'node:path';
 import { BaseFormSubmissionService, SecondBoardFieldMapping } from './BaseFormSubmissionService';
 import { getValueByPath } from '../utils/objectHelpers';
 import { toYYYYMMDD } from '../utils/dateFormatters';
@@ -214,121 +210,37 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
   }
 
 
-  // Novo: fluxo para enviar ao segundo board para cada subitem
+  // Novo: fluxo para enviar ao segundo board para cada subitem (usa implementação genérica da base)
   private async processSecondBoardSendsForSubitems(
     enrichedFormData: FormSubmissionData,
     firstBoardAllColumnValues: Record<string, any>,
-  fallbackItemName: string,
-  firstBoardItemId: string
-  ): Promise<string[]> {
-    const results: string[] = [];
-    const subitems: SubitemData[] = enrichedFormData?.data?.__SUBITEMS__ ?? [];
-
-    let idx = 0;
-    for (const sub of subitems) {
-  const initial = await this.buildSecondBoardInitialPayloadFromSubitem(sub, enrichedFormData, firstBoardAllColumnValues, firstBoardItemId);
-
-      const itemNameSecond = initial.item_name || 'teste excluir';
-      const { baseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(initial.column_values);
-      const filteredConnect = this.pickSecondBoardConnectColumns(connectColumnsRaw);
-
-      // Pre-data por subitem (primeiro envio)
-      try {
-        await this.savePreObjectLocally(
-          {
-            board_id: DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
-            item_name: itemNameSecond,
-            column_values: baseColumns,
-          },
-          `${enrichedFormData.id || 'submission'}_second_board_predata_idx_${idx}`
-        );
-      } catch (e) {
-        console.warn('Falha ao gerar/salvar pre-data do segundo board (subitem):', e);
-      }
-
-      // Criação do item
-      const secondItemId = await this.createMondayItem(
-        DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
-        DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_GROUP_ID,
-        itemNameSecond || fallbackItemName,
-        baseColumns
-      );
-  console.log(`Segundo board: item criado para subitem ${idx} com ID ${secondItemId} (primeiro envio).`);
-
-      // Atualização das colunas conectar_quadros*
-      try {
-        const resolved = await this.resolveConnectBoardColumns(filteredConnect);
-        // Adicionar pessoas3__1 (People) com base em lookup_mkrt36cj -> monday_items.team (segunda submissão do segundo board)
-        try {
-          const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
-          if (ppl) {
-            resolved["pessoas3__1"] = ppl;
-          }
-        } catch (e) {
-          console.warn('Falha ao montar pessoas3__1 (segundo board):', e);
-        }
-        if (Object.keys(resolved).length > 0) {
-          await this.saveObjectLocally(
-            {
-              board_id: DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_second_board_connect_columns_idx_${idx}`
-          );
-
-          await this.savePreObjectLocally(
-            {
-              board_id: DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_second_board_second_send_predata_idx_${idx}`
-          );
-
-          await this.mondayService.changeMultipleColumnValues(
-            DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
-            secondItemId,
-            resolved
-          );
-        }
-      } catch (e) {
-        console.error('Falha ao atualizar colunas conectar_quadros no segundo board (subitem):', e);
-      }
-
-      results.push(secondItemId);
-      idx++;
-    }
-
-    return results;
-  }
-
-  // Monta payload do segundo board usando método da classe base
-  private async buildSecondBoardInitialPayloadFromSubitem(
-    subitem: SubitemData,
-    enrichedFormData: FormSubmissionData,
-    firstBoardAllColumnValues: Record<string, any>,
+    fallbackItemName: string,
     firstBoardItemId: string
-  ): Promise<{ item_name: string; column_values: Record<string, any> }> {
-    return this.buildSecondBoardPayloadFromSubitem(
-      subitem,
+  ): Promise<string[]> {
+    return this.processSecondBoardForSubitems(
       enrichedFormData,
       firstBoardAllColumnValues,
+      fallbackItemName,
       firstBoardItemId,
-      this.secondBoardCorrelationFromSubmission,
-      this.secondBoardCorrelationFromFirst,
-      ''
+      DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_ID,
+      DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_GROUP_ID,
+      DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_CONNECT_COLUMNS,
+      '',
+      'crm'
     );
-  }
-
-  // Novo: limita as colunas conectar_quadros ao conjunto exigido para o segundo board
-  private pickSecondBoardConnectColumns(connectColumnsRaw: Record<string, any>): Record<string, any> {
-    const filtered: Record<string, any> = {};
-    for (const k of DisparoCRMBriefingMateriaisCriativosService.SECOND_BOARD_CONNECT_COLUMNS) {
-      if (connectColumnsRaw[k] !== undefined) filtered[k] = connectColumnsRaw[k];
-    }
-    return filtered;
   }  
+
+  /**
+   * Retorna campos excluídos específicos para CRM
+   */
+  protected getExcludedFields(): string[] {
+    return [
+      'formTitle', 'id', 'timestamp', '__SUBITEMS__', 'pessoas__1', 'pessoas5__1', 
+      'lookup_mkrt36cj', 'lookup_mkrt66aq', 'lookup_mkrtaebd', 'lookup_mkrtcctn', 
+      'lookup_mkrta7z1', 'lookup_mkrtvsdj', 'lookup_mkrtxa46', 'lookup_mkrtwq7k', 
+      'lookup_mkrtxgmt', 'enviar_arquivo__1', 'arquivos'
+    ];
+  }
 
   /**
    * Constrói o objeto column_values para a mutation da Monday.com
@@ -337,9 +249,7 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
     const columnValues: Record<string, any> = {};
 
     // Campos excluídos da submissão para Monday.com
-    const excludedFields = [
-  'formTitle', 'id', 'timestamp', '__SUBITEMS__', 'pessoas__1', 'pessoas5__1', 'lookup_mkrt36cj', 'lookup_mkrt66aq', 'lookup_mkrtaebd', 'lookup_mkrtcctn', 'lookup_mkrta7z1', 'lookup_mkrtvsdj', 'lookup_mkrtxa46', 'lookup_mkrtwq7k', 'lookup_mkrtxgmt', 'enviar_arquivo__1', 'arquivos'
-    ];
+    const excludedFields = this.getExcludedFields();
 
     // Verificar se há subitems e encontrar o com data mais próxima de hoje
     let closestSubitemDate: string | undefined;
@@ -477,175 +387,5 @@ export class DisparoCRMBriefingMateriaisCriativosService extends BaseFormSubmiss
 
 
 
-  /**
-   * Converte data de YYYY-MM-DD para DD/MM/YYYY se necessário
-   */
-
-
-  /**
-   * Converte o(s) valor(es) em pessoas5__1 (normalmente e-mail) para o formato
-   * { personsAndTeams: [{ id: "<subscriber_id>", kind: "person" }, ...] }
-   * Usando a tabela subscribers como fonte do id
-   */
-  protected async resolvePeopleFromSubscribers(value: any): Promise<{ personsAndTeams: { id: string; kind: 'person' }[] } | undefined> {
-    const emails: string[] = Array.isArray(value) ? value.map(String) : [String(value)];
-    const entries: { id: string; kind: 'person' }[] = [];
-
-    for (const email of emails) {
-      const sub = await this.subscriberRepository.findOne({ where: { email } });
-      if (sub?.id) {
-        entries.push({ id: String(sub.id), kind: 'person' });
-      } else {
-        console.warn(`Subscriber não encontrado para email: ${email}`);
-      }
-    }
-
-    if (entries.length > 0) {
-      return { personsAndTeams: entries };
-    }
-    return undefined;
-  }
-
- 
-
-  /**
-   * Cria um item na Monday.com usando GraphQL mutation
-   */
-  protected async createMondayItem(
-    boardId: string,
-    groupId: string,
-    itemName: string,
-    columnValues: Record<string, any>
-  ): Promise<string> {
-    const columnValuesJson = JSON.stringify(columnValues).replaceAll("\"", '\\"');
-    
-    const mutation = `
-      mutation {
-        create_item(
-          board_id: ${boardId},
-          group_id: "${groupId}",
-          item_name: "${itemName.replaceAll("\"", '\\"')}",
-          create_labels_if_missing: true,
-          column_values: "${columnValuesJson}"
-        ) {
-          id
-          name
-          group { id }
-        }
-      }
-    `;
-
-    console.log('Executando mutation:', mutation);
-
-    try {
-      const response = await this.mondayService.makeGraphQLRequest(mutation);
-      
-      if (!response.data?.create_item?.id) {
-        throw new Error('Resposta inválida da Monday.com - ID do item não retornado');
-      }
-
-      return response.data.create_item.id;
-
-    } catch (error) {
-      console.error('Erro na mutation create_item:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Formata valores de STATUS com lógica inteligente:
-   * - Se é um número (ID/index), usa { index: number }
-   * - Se é texto, usa { label: string }
-   */
-  protected formatStatusValue(value: any): any {
-    const statusValue = String(value).trim();
-    
-    // Se é um número (ID/index), usar index
-    if (/^\d+$/.test(statusValue)) {
-      return { index: Number.parseInt(statusValue, 10) };
-    }
-    
-    // Se é texto, usar label (Monday tentará resolver)
-    return { label: statusValue };
-  }
-
-  /**
-   * Formata valores de DROPDOWN seguindo a API Monday.com:
-   * - Se todos são números (IDs) → {"ids": [1, 2, 3]}
-   * - Se algum é texto → {"labels": ["Alta", "Texto"]}
-   */
-  protected formatDropdownValue(value: any): any {
-    const values = Array.isArray(value) ? value : [value];
-    const processedNumbers: number[] = [];
-    const processedStrings: string[] = [];
-    
-    for (const val of values) {
-      const strVal = String(val).trim();
-      if (!strVal) continue;
-      
-      // Se é um número (ID), adicionar aos números
-      if (/^\d+$/.test(strVal)) {
-        processedNumbers.push(Number.parseInt(strVal, 10));
-      } else {
-        // Se é texto, adicionar às strings (labels)
-        processedStrings.push(strVal);
-      }
-    }
-    
-    // Se temos strings, usar "labels" (inclui números convertidos para string)
-    if (processedStrings.length > 0) {
-      const allLabels = [...processedStrings, ...processedNumbers.map(String)];
-      return { labels: allLabels };
-    }
-    
-    // Se só temos números, usar "ids"
-    if (processedNumbers.length > 0) {
-      return { ids: processedNumbers };
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Processa upload de arquivo se o campo enviar_arquivo__1 contém um path do sistema
-   */
-  protected async processFileUpload(itemId: string, _boardId: string, formData: FormSubmissionData): Promise<void> {
-    try {
-      const fileName = getValueByPath(formData, 'data.enviar_arquivo__1');
-
-      if (!fileName || typeof fileName !== 'string') {
-        return;
-      }
-
-      // Construir o caminho completo do arquivo na pasta MondayFiles (com sanitização para prevenir Path Traversal)
-      const uploadDir = path.join(__dirname, '../../MondayFiles');
-      const filePath = buildSafePath(uploadDir, fileName);
-
-      console.log(`Processando upload de arquivo: ${fileName} -> ${filePath} para item ${itemId}`);
-
-      // Verificar se o arquivo existe
-      if (!fs.existsSync(filePath)) {
-        console.error(`Arquivo não encontrado: ${filePath}`);
-        return;
-      }
-
-      // Upload do arquivo diretamente para a coluna do Monday.com
-      const fileId = await this.mondayService.uploadFile(filePath, itemId, 'enviar_arquivo__1');
-
-      console.log(`Arquivo ${fileName} enviado com sucesso. File ID: ${fileId}`);
-
-      // Apagar o arquivo local após upload bem-sucedido
-      try {
-        fs.unlinkSync(filePath);
-        console.log(`Arquivo local removido: ${filePath}`);
-      } catch (unlinkError) {
-        console.error(`Erro ao remover arquivo local: ${filePath}`, unlinkError);
-      }
-
-    } catch (error) {
-      console.error('Erro ao processar upload de arquivo:', error);
-      // Não propagar o erro para não quebrar o fluxo principal
-    }
-  }
-
+  // Métodos de formatação e criação herdados da classe base (removidos para eliminar duplicação)
 }
