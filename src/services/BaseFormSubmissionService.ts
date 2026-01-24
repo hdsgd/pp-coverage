@@ -30,6 +30,92 @@ export interface SecondBoardFieldMapping {
   useCanalFromSubitem?: boolean;
 }
 
+/**
+ * Interface para informações de capacidade de canal
+ */
+export interface CapacityInfo {
+  maxValue: number;
+  effectiveMaxValue: number;
+  availableAtCurrent: number;
+  splitHours: Set<string>;
+}
+
+/**
+ * Interface simplificada de capacidade para operações de split
+ */
+export interface SimplifiedCapacityInfo {
+  maxValue: number;
+  splitHours: Set<string>;
+}
+
+/**
+ * DTO para contexto de alocação de capacidade
+ */
+export interface CapacityAllocationContext {
+  items: SubitemData[];
+  index: number;
+  item: SubitemData;
+  demanda: number;
+  capacityInfo: CapacityInfo;
+  activeTimeSlots: MondayItem[];
+  staged: Record<string, number>;
+  keyFn: (id: string, d: Date, h: string) => string;
+  areaSolicitante: string | undefined;
+}
+
+/**
+ * DTO para contexto de divisão de demanda entre horários
+ */
+export interface SplitDemandContext {
+  items: SubitemData[];
+  index: number;
+  item: SubitemData;
+  demanda: number;
+  availableAtCurrent: number;
+  capacityInfo: SimplifiedCapacityInfo;
+  activeTimeSlots: MondayItem[];
+  staged: Record<string, number>;
+  keyFn: (id: string, d: Date, h: string) => string;
+  idCanal: string;
+  dataDate: Date;
+  horaAtual: string;
+  areaSolicitante: string | undefined;
+}
+
+/**
+ * DTO para busca de horário disponível
+ */
+export interface FindAvailableSlotContext {
+  items: SubitemData[];
+  index: number;
+  item: SubitemData;
+  restante: number;
+  activeTimeSlots: MondayItem[];
+  capacityInfo: SimplifiedCapacityInfo;
+  staged: Record<string, number>;
+  keyFn: (id: string, d: Date, h: string) => string;
+  idCanal: string;
+  dataDate: Date;
+  areaSolicitante: string | undefined;
+}
+
+/**
+ * DTO para processamento de subitem para segundo board
+ */
+export interface ProcessSubitemContext {
+  sub: SubitemData;
+  enrichedFormData: FormSubmissionData;
+  firstBoardAllColumnValues: Record<string, any>;
+  firstBoardItemId: string;
+  secondBoardId: string;
+  secondBoardGroupId: string;
+  connectColumns: string[];
+  fallbackItemName: string;
+  itemNameSuffix: string;
+  serviceLabel: string;
+  idx: number;
+}
+
 export abstract class BaseFormSubmissionService {
   protected readonly mondayService: MondayService;
   protected readonly subscriberRepository: Repository<Subscriber>;
@@ -216,38 +302,79 @@ export abstract class BaseFormSubmissionService {
   protected async resolveConnectBoardColumns(connectColumnsRaw: Record<string, any>): Promise<Record<string, any>> {
     const out: Record<string, any> = {};
     for (const [key, rawVal] of Object.entries(connectColumnsRaw)) {
-      // Caso já venha como { item_ids: [...] }, respeitar e seguir
-      if (rawVal && typeof rawVal === 'object' && Array.isArray(rawVal.item_ids)) {
-        const ids = rawVal.item_ids.map(String).filter((s: string) => s.trim().length > 0);
-        if (ids.length > 0) {
-          out[key] = { item_ids: ids };
-          continue;
-        }
-      }
-
-      const values: string[] = this.normalizeToStringArray(rawVal);
-      const itemIds: string[] = [];
-      for (const val of values) {
-        const trimmed = String(val).trim();
-        if (!trimmed) continue;
-        // Se já é um número (id do item), usar diretamente
-        if (/^\d+$/.test(trimmed)) {
-          itemIds.push(trimmed);
-          continue;
-        }
-        // Caso contrário, tentar resolver por name/code/team
-        const found = await this.findMondayItemBySearchTerm(trimmed);
-        if (found?.item_id) {
-          itemIds.push(String(found.item_id));
-        } else {
-          console.warn(`MondayItem não encontrado para termo='${trimmed}' ao resolver ${key}`);
-        }
-      }
-      if (itemIds.length > 0) {
-        out[key] = { item_ids: itemIds };
+      const processedValue = await this.processConnectBoardValue(key, rawVal);
+      if (processedValue) {
+        out[key] = processedValue;
       }
     }
     return out;
+  }
+
+  /**
+   * Processa um valor individual de coluna connect_board
+   */
+  private async processConnectBoardValue(key: string, rawVal: any): Promise<{ item_ids: string[] } | null> {
+    // Caso já venha como { item_ids: [...] }, respeitar e seguir
+    const formattedValue = this.tryExtractFormattedItemIds(rawVal);
+    if (formattedValue) {
+      return formattedValue;
+    }
+
+    // Resolver valores que precisam de busca
+    const itemIds = await this.resolveItemIdsFromValues(key, rawVal);
+    return itemIds.length > 0 ? { item_ids: itemIds } : null;
+  }
+
+  /**
+   * Tenta extrair item_ids já formatados
+   */
+  private tryExtractFormattedItemIds(rawVal: any): { item_ids: string[] } | null {
+    if (rawVal && typeof rawVal === 'object' && Array.isArray(rawVal.item_ids)) {
+      const ids = rawVal.item_ids.map(String).filter((s: string) => s.trim().length > 0);
+      if (ids.length > 0) {
+        return { item_ids: ids };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Resolve valores para item_ids fazendo busca quando necessário
+   */
+  private async resolveItemIdsFromValues(key: string, rawVal: any): Promise<string[]> {
+    const values: string[] = this.normalizeToStringArray(rawVal);
+    const itemIds: string[] = [];
+    
+    for (const val of values) {
+      const trimmed = String(val).trim();
+      if (!trimmed) continue;
+      
+      const itemId = await this.resolveValueToItemId(trimmed, key);
+      if (itemId) {
+        itemIds.push(itemId);
+      }
+    }
+    
+    return itemIds;
+  }
+
+  /**
+   * Resolve um único valor para item_id
+   */
+  private async resolveValueToItemId(value: string, columnKey: string): Promise<string | null> {
+    // Se já é um número (id do item), usar diretamente
+    if (/^\d+$/.test(value)) {
+      return value;
+    }
+    
+    // Caso contrário, tentar resolver por name/code/team
+    const found = await this.findMondayItemBySearchTerm(value);
+    if (found?.item_id) {
+      return String(found.item_id);
+    }
+    
+    console.warn(`MondayItem não encontrado para termo='${value}' ao resolver ${columnKey}`);
+    return null;
   }
 
   /**
@@ -821,78 +948,82 @@ export abstract class BaseFormSubmissionService {
   protected async buildCompositeTextField(formData: FormSubmissionData, itemId?: string): Promise<string> {
     const d = formData?.data ?? {};
 
-    // Buscar a Data do Disparo Texto do campo text_mkr3n64h (que já contém o formato YYYYMMDD)
     const dataDisparoTexto = String(d["text_mkr3n64h"] ?? "").trim();
-
-    // Se não encontrar em text_mkr3n64h, usar data__1 convertida
     const yyyymmdd = dataDisparoTexto || toYYYYMMDD(d["data__1"]);
-
-    // Ajuste: usar o ID real do item criado para compor o campo (id-<itemId>)
     const idPart = itemId ? `id-${itemId}` : "";
-
-    // Mapeamento híbrido: lookup_* (formulários CRM) → gam_* (formulários GAM puros)
-    const fieldPairs = [
-      { lookup: "lookup_mkrtaebd", gam: "gam_client_type" },      // Tipo Cliente
-      { lookup: "lookup_mkrt66aq", gam: "gam_campaign_type" },    // Tipo Campanha
-      { lookup: "lookup_mkrtxa46", gam: "gam_mechanism" },        // Mecânica
-      { lookup: "lookup_mkrta7z1", gam: "gam_requesting_area" },  // Área Solicitante
-      { lookup: "lookup_mkrt36cj", gam: "gam_target_segment" },   // Segmento Alvo
-      { lookup: "lookup_mkrtwq7k", gam: "gam_objective" },        // Objetivo
-      { lookup: "lookup_mkrtvsdj", gam: "gam_product_service" },  // Produto / Serviço
-      { lookup: "lookup_mkrtcctn", gam: "gam_format_type" },      // Formato
-      { lookup: "lookup_mkrtxgmt", gam: "gam_campaign_type_specific" } // Tipo de Campanha Específica
-    ];
 
     // Buscar board_id do board "Produto" uma vez para evitar colisão
     const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
     const produtoBoardId = produtoBoard?.id;
 
-    const codes: string[] = [];
-    for (const pair of fieldPairs) {
-      // Tentar lookup primeiro, depois gam
-      const nameVal = String(d[pair.lookup] ?? d[pair.gam] ?? "").trim();
-      if (!nameVal) {
-        // Manter posição vazia para preservar a estrutura da taxonomia
-        codes.push("");
-        continue;
-      }
-
-      try {
-        let code: string | undefined;
-
-        // Lógica especial para produtos (lookup_mkrtvsdj / gam_product_service): buscar no board correto e incluir subproduto se existir
-        if (pair.lookup === "lookup_mkrtvsdj") {
-          // Buscar código do produto no board específico para evitar colisão com subprodutos
-          code = await this.getCodeByItemName(nameVal, produtoBoardId);
-
-          if (code) {
-            const subproductCode = await this.mondayService.getSubproductCodeByProduct(nameVal);
-            if (subproductCode) {
-              code = `${code}_${subproductCode}`;
-            }
-          }
-        } else {
-          // Para outros campos, buscar normalmente
-          code = await this.getCodeByItemName(nameVal);
-        }
-
-        codes.push(code ?? nameVal);
-      } catch {
-        codes.push(nameVal);
-      }
-    }
-
+    const codes = await this.resolveFieldCodes(d, produtoBoardId);
     const tailName = String(d["name"] ?? "").trim();
 
-    // Não remover campos vazios para manter as posições fixas na taxonomia
-    const parts = [
-      yyyymmdd,
-      idPart,
-      ...codes,
-      tailName,
+    const parts = [yyyymmdd, idPart, ...codes, tailName];
+    return parts.join("-");
+  }
+
+  /**
+   * Resolve códigos para os campos da taxonomia
+   */
+  private async resolveFieldCodes(data: Record<string, any>, produtoBoardId?: string): Promise<string[]> {
+    const fieldPairs = [
+      { lookup: "lookup_mkrtaebd", gam: "gam_client_type" },
+      { lookup: "lookup_mkrt66aq", gam: "gam_campaign_type" },
+      { lookup: "lookup_mkrtxa46", gam: "gam_mechanism" },
+      { lookup: "lookup_mkrta7z1", gam: "gam_requesting_area" },
+      { lookup: "lookup_mkrt36cj", gam: "gam_target_segment" },
+      { lookup: "lookup_mkrtwq7k", gam: "gam_objective" },
+      { lookup: "lookup_mkrtvsdj", gam: "gam_product_service" },
+      { lookup: "lookup_mkrtcctn", gam: "gam_format_type" },
+      { lookup: "lookup_mkrtxgmt", gam: "gam_campaign_type_specific" }
     ];
 
-    return parts.join("-");
+    const codes: string[] = [];
+    for (const pair of fieldPairs) {
+      const code = await this.resolveFieldCode(data, pair, produtoBoardId);
+      codes.push(code);
+    }
+    return codes;
+  }
+
+  /**
+   * Resolve código individual de um campo
+   */
+  private async resolveFieldCode(
+    data: Record<string, any>,
+    pair: { lookup: string; gam: string },
+    produtoBoardId?: string
+  ): Promise<string> {
+    const nameVal = String(data[pair.lookup] ?? data[pair.gam] ?? "").trim();
+    if (!nameVal) {
+      return ""; // Manter posição vazia para preservar estrutura
+    }
+
+    try {
+      // Lógica especial para produtos
+      if (pair.lookup === "lookup_mkrtvsdj") {
+        return await this.resolveProductCode(nameVal, produtoBoardId);
+      }
+      
+      const code = await this.getCodeByItemName(nameVal);
+      return code ?? nameVal;
+    } catch {
+      return nameVal;
+    }
+  }
+
+  /**
+   * Resolve código de produto com subproduto se existir
+   */
+  private async resolveProductCode(productName: string, produtoBoardId?: string): Promise<string> {
+    const code = await this.getCodeByItemName(productName, produtoBoardId);
+    if (!code) {
+      return productName;
+    }
+
+    const subproductCode = await this.mondayService.getSubproductCodeByProduct(productName);
+    return subproductCode ? `${code}_${subproductCode}` : code;
   }
 
   /**
@@ -1065,130 +1196,244 @@ export abstract class BaseFormSubmissionService {
     formData: FormSubmissionData | undefined, 
     timeSlotsBoard: string
   ): Promise<SubitemData[]> {
-    // Extrair área solicitante do formData
-    const areaSolicitante = formData?.data?.gam_requesting_area 
+    const areaSolicitante = this.extractAreaSolicitante(formData);
+    const activeTimeSlots = await this.loadActiveTimeSlots(timeSlotsBoard);
+    const items: SubitemData[] = subitems.map(s => ({ ...s }));
+
+    await this.processCapacityAdjustments(items, activeTimeSlots, areaSolicitante);
+    
+    return items.filter(it => Number(it.n_meros_mkkchcmk ?? 0) > 0);
+  }
+
+  private extractAreaSolicitante(formData: FormSubmissionData | undefined): string | undefined {
+    return formData?.data?.gam_requesting_area 
       || formData?.data?.requesting_area 
       || formData?.data?.area_solicitante;
+  }
 
-    // Carrega slots de horários ativos, ordenados por nome ASC
-    const activeTimeSlots = await this.mondayItemRepository.find({
+  private async loadActiveTimeSlots(timeSlotsBoard: string): Promise<MondayItem[]> {
+    return await this.mondayItemRepository.find({
       where: { board_id: timeSlotsBoard, status: 'Ativo' },
       order: { name: 'ASC' }
     });
+  }
 
-    // Copiamos a lista pois vamos inserir itens dinamicamente
-    const items: SubitemData[] = subitems.map(s => ({ ...s }));
-
-    // Função para chavear canal/data/hora
+  private async processCapacityAdjustments(
+    items: SubitemData[], 
+    activeTimeSlots: MondayItem[], 
+    areaSolicitante: string | undefined
+  ): Promise<void> {
     const key = (id: string, d: Date, h: string) => `${id}|${d.toISOString().slice(0,10)}|${h}`;
-
-    // Loop até não haver modificações
+    
     let changed = true;
     while (changed) {
       changed = false;
       const staged: Record<string, number> = {};
 
       for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const idCanal = String(item.id ?? '').trim();
-        const dataStr = String(item.data__1 ?? '').trim();
-        const horaAtual = String(item.conectar_quadros_mkkcnyr3 ?? '').trim();
-        const demanda = Number(item.n_meros_mkkchcmk ?? 0);
-
-        // Remover itens inválidos ou com zero
-        if (!idCanal || !dataStr || !horaAtual || demanda <= 0) {
-          items.splice(i, 1);
-          changed = true;
-          break;
-        }
-
-        const dataDate = this.parseFlexibleDateToDate(dataStr);
-        if (!dataDate) continue;
-
-        // capacidade do canal
-        const canalItem = await this.mondayItemRepository.findOne({ where: { item_id: String(idCanal) } });
-        const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
-          ? Number(canalItem.max_value)
-          : undefined;
-        if (maxValue === undefined || Number.isNaN(maxValue)) {
-          continue;
-        }
-
-        // Horários especiais que compartilham limite (8:00 e 8:30)
-        const splitHours = new Set(["08:00", "08:30"]);
-        const effectiveMaxValue = splitHours.has(horaAtual) ? maxValue / 2 : maxValue;
-
-        // disponibilidade = max - (reservas em DB + reservas staged desta passada)
-        const dbReserved = await this.sumReservedQty(idCanal, dataDate, horaAtual, areaSolicitante);
-        const stagedReserved = staged[key(idCanal, dataDate, horaAtual)] ?? 0;
-        const availableAtCurrent = Math.max(0, effectiveMaxValue - (dbReserved + stagedReserved));
-
-        if (demanda <= availableAtCurrent) {
-          // aloca tudo neste slot
-          staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + demanda;
-          continue;
-        }
-
-        // Se capacidade disponível for zero ou negativa
-        if (availableAtCurrent <= 0) {
-          const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-          const nextIndex = idx >= 0 ? idx + 1 : 0;
-          if (nextIndex >= activeTimeSlots.length) {
-            console.warn(`Sem próximo horário disponível após "${horaAtual}" para canal ${idCanal}. Restante: ${demanda}`);
-            items.splice(i, 1);
-            changed = true;
-            break;
-          }
-          const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
-          const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: demanda };
-          items.splice(i, 1, novoSubitem);
-          changed = true;
-          break;
-        }
-
-        // Ajusta o item atual para a capacidade disponível
-        item.n_meros_mkkchcmk = availableAtCurrent;
-        staged[key(idCanal, dataDate, horaAtual)] = (staged[key(idCanal, dataDate, horaAtual)] ?? 0) + availableAtCurrent;
-
-        // Resto deve ir para o próximo horário
-        const restante = Math.max(0, demanda - availableAtCurrent);
-        const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
-        const nextIndex = idx >= 0 ? idx + 1 : 0;
+        const result = await this.processSubitemCapacity(
+          items, i, activeTimeSlots, staged, areaSolicitante, key
+        );
         
-        if (nextIndex >= activeTimeSlots.length) {
-          let foundAvailableSlot = false;
-          for (const testSlot of activeTimeSlots) {
-            const testHora = (testSlot.name || '').trim();
-            const testReserved = await this.sumReservedQty(idCanal, dataDate, testHora, areaSolicitante);
-            const testStaged = staged[key(idCanal, dataDate, testHora)] ?? 0;
-            const testEffectiveMax = splitHours.has(testHora) ? maxValue / 2 : maxValue;
-            const testAvailable = Math.max(0, testEffectiveMax - (testReserved + testStaged));
-            
-            if (testAvailable > 0) {
-              const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: testHora, n_meros_mkkchcmk: restante };
-              items.splice(i + 1, 0, novoSubitem);
-              foundAvailableSlot = true;
-              changed = true;
-              break;
-            }
-          }
-          
-          if (!foundAvailableSlot) {
-            console.warn(`Nenhum horário disponível para alocar restante de ${restante} unidades no canal ${idCanal}`);
-          }
-          
+        if (result.changed) {
+          changed = true;
           break;
         }
-
-        const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
-        const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: restante };
-        items.splice(i + 1, 0, novoSubitem);
-        changed = true;
-        break;
       }
     }
+  }
 
-    return items.filter(it => Number(it.n_meros_mkkchcmk ?? 0) > 0);
+  private async processSubitemCapacity(
+    items: SubitemData[],
+    index: number,
+    activeTimeSlots: MondayItem[],
+    staged: Record<string, number>,
+    areaSolicitante: string | undefined,
+    keyFn: (id: string, d: Date, h: string) => string
+  ): Promise<{ changed: boolean }> {
+    const item = items[index];
+    const { idCanal, dataStr, horaAtual, demanda } = this.extractSubitemData(item);
+
+    if (!this.isValidSubitem(idCanal, dataStr, horaAtual, demanda)) {
+      items.splice(index, 1);
+      return { changed: true };
+    }
+
+    const dataDate = this.parseFlexibleDateToDate(dataStr);
+    if (!dataDate) return { changed: false };
+
+    const capacityInfo = await this.getChannelCapacityInfo(idCanal, dataDate, horaAtual, areaSolicitante, staged, keyFn);
+    if (!capacityInfo) return { changed: false };
+
+    const allocationContext: CapacityAllocationContext = {
+      items,
+      index,
+      item,
+      demanda,
+      capacityInfo,
+      activeTimeSlots,
+      staged,
+      keyFn,
+      areaSolicitante
+    };
+    
+    return await this.handleCapacityAllocation(allocationContext);
+  }
+
+  private extractSubitemData(item: SubitemData) {
+    return {
+      idCanal: String(item.id ?? '').trim(),
+      dataStr: String(item.data__1 ?? '').trim(),
+      horaAtual: String(item.conectar_quadros_mkkcnyr3 ?? '').trim(),
+      demanda: Number(item.n_meros_mkkchcmk ?? 0)
+    };
+  }
+
+  private isValidSubitem(idCanal: string, dataStr: string, horaAtual: string, demanda: number): boolean {
+    return !!(idCanal && dataStr && horaAtual && demanda > 0);
+  }
+
+  private async getChannelCapacityInfo(
+    idCanal: string,
+    dataDate: Date,
+    horaAtual: string,
+    areaSolicitante: string | undefined,
+    staged: Record<string, number>,
+    keyFn: (id: string, d: Date, h: string) => string
+  ): Promise<CapacityInfo | null> {
+    const canalItem = await this.mondayItemRepository.findOne({ where: { item_id: idCanal } });
+    const maxValue = canalItem?.max_value !== undefined && canalItem?.max_value !== null
+      ? Number(canalItem.max_value)
+      : undefined;
+    
+    if (maxValue === undefined || Number.isNaN(maxValue)) {
+      return null;
+    }
+
+    const splitHours = new Set(["08:00", "08:30"]);
+    const effectiveMaxValue = splitHours.has(horaAtual) ? maxValue / 2 : maxValue;
+    const dbReserved = await this.sumReservedQty(idCanal, dataDate, horaAtual, areaSolicitante);
+    const stagedReserved = staged[keyFn(idCanal, dataDate, horaAtual)] ?? 0;
+    const availableAtCurrent = Math.max(0, effectiveMaxValue - (dbReserved + stagedReserved));
+
+    return { maxValue, effectiveMaxValue, availableAtCurrent, splitHours };
+  }
+
+  private async handleCapacityAllocation(context: CapacityAllocationContext): Promise<{ changed: boolean }> {
+    const { item, demanda, capacityInfo, activeTimeSlots, staged, keyFn, items, index } = context;
+    const { idCanal, dataStr, horaAtual } = this.extractSubitemData(item);
+    const dataDate = this.parseFlexibleDateToDate(dataStr)!;
+    const { availableAtCurrent } = capacityInfo;
+
+    if (demanda <= availableAtCurrent) {
+      staged[keyFn(idCanal, dataDate, horaAtual)] = (staged[keyFn(idCanal, dataDate, horaAtual)] ?? 0) + demanda;
+      return { changed: false };
+    }
+
+    if (availableAtCurrent <= 0) {
+      return this.moveToNextTimeSlot(items, index, item, demanda, horaAtual, activeTimeSlots, idCanal);
+    }
+
+    const splitContext: SplitDemandContext = {
+      items,
+      index,
+      item,
+      demanda,
+      availableAtCurrent,
+      capacityInfo: { maxValue: capacityInfo.maxValue, splitHours: capacityInfo.splitHours },
+      activeTimeSlots,
+      staged,
+      keyFn,
+      idCanal,
+      dataDate,
+      horaAtual,
+      areaSolicitante: context.areaSolicitante
+    };
+    
+    return await this.splitDemandAcrossSlots(splitContext);
+  }
+
+  private moveToNextTimeSlot(
+    items: SubitemData[],
+    index: number,
+    item: SubitemData,
+    demanda: number,
+    horaAtual: string,
+    activeTimeSlots: MondayItem[],
+    idCanal: string
+  ): { changed: boolean } {
+    const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === horaAtual);
+    const nextIndex = idx >= 0 ? idx + 1 : 0;
+    
+    if (nextIndex >= activeTimeSlots.length) {
+      console.warn(`Sem próximo horário disponível após "${horaAtual}" para canal ${idCanal}. Restante: ${demanda}`);
+      items.splice(index, 1);
+      return { changed: true };
+    }
+    
+    const nextHora = (activeTimeSlots[nextIndex].name || '').trim();
+    const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: demanda };
+    items.splice(index, 1, novoSubitem);
+    return { changed: true };
+  }
+
+  private async splitDemandAcrossSlots(context: SplitDemandContext): Promise<{ changed: boolean }> {
+    const { item, availableAtCurrent, demanda, staged, keyFn, idCanal, dataDate, horaAtual, activeTimeSlots, items, index, capacityInfo, areaSolicitante } = context;
+    
+    item.n_meros_mkkchcmk = availableAtCurrent;
+    staged[keyFn(idCanal, dataDate, horaAtual)] = (staged[keyFn(idCanal, dataDate, horaAtual)] ?? 0) + availableAtCurrent;
+
+    const restante = Math.max(0, demanda - availableAtCurrent);
+    const nextHora = this.findNextAvailableSlot(activeTimeSlots, horaAtual);
+
+    if (!nextHora) {
+      const findContext: FindAvailableSlotContext = {
+        items,
+        index,
+        item,
+        restante,
+        activeTimeSlots,
+        capacityInfo: { maxValue: capacityInfo.maxValue, splitHours: capacityInfo.splitHours },
+        staged,
+        keyFn,
+        idCanal,
+        dataDate,
+        areaSolicitante
+      };
+      const foundSlot = await this.findAnyAvailableSlot(findContext);
+      return { changed: foundSlot };
+    }
+
+    const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: nextHora, n_meros_mkkchcmk: restante };
+    items.splice(index + 1, 0, novoSubitem);
+    return { changed: true };
+  }
+
+  private findNextAvailableSlot(activeTimeSlots: MondayItem[], currentHour: string): string | null {
+    const idx = activeTimeSlots.findIndex(s => (s.name || '').trim() === currentHour);
+    const nextIndex = idx >= 0 ? idx + 1 : 0;
+    return nextIndex < activeTimeSlots.length ? (activeTimeSlots[nextIndex].name || '').trim() : null;
+  }
+
+  private async findAnyAvailableSlot(context: FindAvailableSlotContext): Promise<boolean> {
+    const { items, index, item, restante, activeTimeSlots, capacityInfo, staged, keyFn, idCanal, dataDate, areaSolicitante } = context;
+    
+    for (const testSlot of activeTimeSlots) {
+      const testHora = (testSlot.name || '').trim();
+      const testReserved = await this.sumReservedQty(idCanal, dataDate, testHora, areaSolicitante);
+      const testStaged = staged[keyFn(idCanal, dataDate, testHora)] ?? 0;
+      const testEffectiveMax = capacityInfo.splitHours.has(testHora) ? capacityInfo.maxValue / 2 : capacityInfo.maxValue;
+      const testAvailable = Math.max(0, testEffectiveMax - (testReserved + testStaged));
+      
+      if (testAvailable > 0) {
+        const novoSubitem: SubitemData = { ...item, conectar_quadros_mkkcnyr3: testHora, n_meros_mkkchcmk: restante };
+        items.splice(index + 1, 0, novoSubitem);
+        return true;
+      }
+    }
+    
+    console.warn(`Nenhum horário disponível para alocar restante de ${restante} unidades no canal ${idCanal}`);
+    return false;
   }
 
   /**
@@ -1212,27 +1457,54 @@ export abstract class BaseFormSubmissionService {
     secondBoardCorrelationFromFirst: Array<{ id_first_board: string; id_second_board: string }>,
     itemNameSuffix: string = ''
   ): Promise<{ item_name: string; column_values: Record<string, any> }> {
-    const cv: Record<string, any> = {};
     const fieldMapping = this.getSecondBoardFieldMapping();
-    
-    // Método deve ser implementado pelas subclasses
     if (!fieldMapping) {
       throw new Error('getSecondBoardFieldMapping() must be implemented by subclass');
     }
 
-    // Buscar board_id do board "Produto" uma vez para evitar colisão
-    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
-    const produtoBoardId = produtoBoard?.id;
+    const produtoBoardId = await this.getProdutoBoardId();
+    const cv: Record<string, any> = {};
 
-    // Correlações submissão=>segundo (prioriza subitem, depois dado do formulário)
+    // Processar correlações
+    this.applyCorrelations(cv, subitem, enrichedFormData, firstBoardAllColumnValues, 
+                          secondBoardCorrelationFromSubmission, secondBoardCorrelationFromFirst);
+
+    // Campos base
+    await this.applyBaseFields(cv, subitem, firstBoardAllColumnValues, firstBoardItemId);
+
+    // Campos de taxonomia e mapeamento
+    await this.applyTaxonomyFields(cv, subitem, enrichedFormData, fieldMapping, produtoBoardId);
+
+    // Campos específicos do subitem
+    this.applySubitemFields(cv, subitem, firstBoardItemId);
+
+    // Campos compostos
+    await this.applyCompositeFields(cv, enrichedFormData, firstBoardItemId);
+
+    const item_name = this.buildSecondBoardItemName(cv, itemNameSuffix);
+    return { item_name, column_values: cv };
+  }
+
+  private async getProdutoBoardId(): Promise<string | undefined> {
+    const produtoBoard = await this.mondayBoardRepository.findOne({ where: { name: "Produto" } });
+    return produtoBoard?.id;
+  }
+
+  private applyCorrelations(
+    cv: Record<string, any>,
+    subitem: SubitemData,
+    enrichedFormData: FormSubmissionData,
+    firstBoardAllColumnValues: Record<string, any>,
+    secondBoardCorrelationFromSubmission: Array<{ id_submission: string; id_second_board: string }>,
+    secondBoardCorrelationFromFirst: Array<{ id_first_board: string; id_second_board: string }>
+  ): void {
+    // Correlações submissão=>segundo
     for (const m of secondBoardCorrelationFromSubmission) {
       const from = (m.id_submission || '').trim();
       const to = (m.id_second_board || '').trim();
       if (!from || !to) continue;
-      let v: any = subitem[from];
-      if (v === undefined) {
-        v = enrichedFormData?.data?.[from];
-      }
+      
+      const v = subitem[from] !== undefined ? subitem[from] : enrichedFormData?.data?.[from];
       if (v !== undefined) cv[to] = v;
     }
 
@@ -1241,41 +1513,70 @@ export abstract class BaseFormSubmissionService {
       const from = (m.id_first_board || '').trim();
       const to = (m.id_second_board || '').trim();
       if (!from || !to) continue;
+      
       const v = firstBoardAllColumnValues[from];
       if (v !== undefined) cv[to] = v;
     }
+  }
 
-    // date_mkrk5v4c: data de hoje no formato date da Monday
+  private async applyBaseFields(
+    cv: Record<string, any>,
+    subitem: SubitemData,
+    firstBoardAllColumnValues: Record<string, any>,
+    firstBoardItemId: string
+  ): Promise<void> {
+    // Data de hoje
     if (cv['date_mkrk5v4c'] === undefined) {
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const iso = `${yyyy}-${mm}-${dd}`;
+      const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       cv['date_mkrk5v4c'] = this.formatDateValue(iso);
     }
 
-    // text_mkr3v9k3: valor de data__1 do subitem do formulário de submissão
+    // Data do subitem
     if (cv['text_mkr3v9k3'] === undefined && subitem['data__1'] !== undefined) {
       cv['text_mkr3v9k3'] = String(subitem['data__1']);
     }
 
-    // pessoas5__1 do pessoas__1
+    // Pessoas
     if (firstBoardAllColumnValues['pessoas__1']) {
       cv['pessoas5__1'] = firstBoardAllColumnValues['pessoas__1'];
     }
 
-    // text_mkrr6jkh deve vir do item_id do primeiro board
+    // Link ao primeiro board
     cv['text_mkrr6jkh'] = String(firstBoardItemId);
-    
-    // Construir taxonomia: código do produto + código do subproduto (se encontrado)
+  }
+
+  private async applyTaxonomyFields(
+    cv: Record<string, any>,
+    subitem: SubitemData,
+    enrichedFormData: FormSubmissionData,
+    fieldMapping: SecondBoardFieldMapping,
+    produtoBoardId?: string
+  ): Promise<void> {
+    // Taxonomia de produto
+    await this.applyProductTaxonomy(cv, subitem);
+
+    // Canal
+    await this.applyChannelField(cv, subitem, enrichedFormData, fieldMapping);
+
+    // Campos mapeados com código
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.cliente, 'text_mkrrg2hp', 'text_mkrrna7e');
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.campanha, 'text_mkrra7df', 'text_mkrrcnpx');
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.disparo, 'text_mkrr9edr', 'text_mkrrmjcy');
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.mecanica, 'text_mkrrxf48', 'text_mkrrxpjd');
+    await this.applySolicitanteField(cv, enrichedFormData, fieldMapping.solicitante);
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.objetivo, 'text_mkrrhdh6', 'text_mkrrraz2');
+    await this.applyProductField(cv, enrichedFormData, fieldMapping.produto, produtoBoardId);
+    await this.applySubproductField(cv);
+    await this.applyMappedFieldWithCode(cv, enrichedFormData, fieldMapping.segmento, 'text_mkrrt32q', 'text_mkrrhdf8');
+  }
+
+  private async applyProductTaxonomy(cv: Record<string, any>, subitem: SubitemData): Promise<void> {
     const productCode = String(subitem.texto__1);
     const productName = String(subitem.conectar_quadros87__1);
     
-    // Buscar código do subproduto associado ao produto
     const subproductCode = await this.mondayService.getSubproductCodeByProduct(productName);
     
-    // Construir taxonomia final: produto_subproduto (se encontrado) ou apenas código do produto
     if (subproductCode) {
       cv['texto6__1'] = `${productCode}_${subproductCode}`;
       console.log(`Taxonomia criada com subproduto: ${productCode}_${subproductCode} (produto: ${productName})`);
@@ -1283,8 +1584,14 @@ export abstract class BaseFormSubmissionService {
       cv['texto6__1'] = productCode;
       console.log(`Subproduto não encontrado para produto "${productName}", usando apenas código do produto: ${productCode}`);
     }
+  }
 
-    // Canal - com lógica condicional para priorizar subitem em CRM
+  private async applyChannelField(
+    cv: Record<string, any>,
+    subitem: SubitemData,
+    enrichedFormData: FormSubmissionData,
+    fieldMapping: SecondBoardFieldMapping
+  ): Promise<void> {
     if (fieldMapping.useCanalFromSubitem) {
       const canalDoSubitem = String(subitem.conectar_quadros87__1 ?? '').trim();
       const canalDoFormulario = String(enrichedFormData.data[fieldMapping.canal] ?? '').trim();
@@ -1293,54 +1600,38 @@ export abstract class BaseFormSubmissionService {
       cv['text_mkrrqsk6'] = String(enrichedFormData.data[fieldMapping.canal] ?? '').trim();
     }
 
-    // texto6__1 recebe o nome do canal (sobrescreve a taxonomia de produto)
     cv['texto6__1'] = cv['text_mkrrqsk6'];
 
     if (cv['text_mkrrqsk6']) {
-      cv['text_mkrr8dta'] = (await this.getCodeByItemName(cv['text_mkrrqsk6']))
-        ?? cv['text_mkrr8dta'] ?? 'Email';
+      cv['text_mkrr8dta'] = (await this.getCodeByItemName(cv['text_mkrrqsk6'])) ?? cv['text_mkrr8dta'] ?? 'Email';
     } else {
       cv['text_mkrr8dta'] = cv['text_mkrr8dta'] ?? 'Email';
     }
+  }
 
-    // Cliente
-    cv['text_mkrrg2hp'] = String(enrichedFormData.data[fieldMapping.cliente] ?? '').trim();
-    if (cv['text_mkrrg2hp']) {
-      cv['text_mkrrna7e'] = (await this.getCodeByItemName(cv['text_mkrrg2hp']))
-        ?? cv['text_mkrrna7e'] ?? 'NaN';
+  private async applyMappedFieldWithCode(
+    cv: Record<string, any>,
+    enrichedFormData: FormSubmissionData,
+    sourceField: string,
+    targetField: string,
+    codeField: string
+  ): Promise<void> {
+    cv[targetField] = String(enrichedFormData.data[sourceField] ?? '').trim();
+    
+    if (cv[targetField]) {
+      cv[codeField] = (await this.getCodeByItemName(cv[targetField])) ?? cv[codeField] ?? 'NaN';
     } else {
-      cv['text_mkrrna7e'] = cv['text_mkrrna7e'] ?? 'NaN';
+      cv[codeField] = cv[codeField] ?? 'NaN';
     }
+  }
 
-    // Campanha
-    cv['text_mkrra7df'] = String(enrichedFormData.data[fieldMapping.campanha] ?? '').trim();
-    if (cv['text_mkrra7df']) {
-      cv['text_mkrrcnpx'] = (await this.getCodeByItemName(cv['text_mkrra7df']))
-        ?? cv['text_mkrrcnpx'] ?? 'NaN';
-    } else {
-      cv['text_mkrrcnpx'] = cv['text_mkrrcnpx'] ?? 'NaN';
-    }
-
-    // Disparo
-    cv['text_mkrr9edr'] = String(enrichedFormData.data[fieldMapping.disparo] ?? '').trim();
-    if (cv['text_mkrr9edr']) {
-      cv['text_mkrrmjcy'] = (await this.getCodeByItemName(cv['text_mkrr9edr']))
-        ?? cv['text_mkrrmjcy'] ?? 'NaN';
-    } else {
-      cv['text_mkrrmjcy'] = cv['text_mkrrmjcy'] ?? 'NaN';
-    }
-
-    // Mecânica
-    cv['text_mkrrxf48'] = String(enrichedFormData.data[fieldMapping.mecanica] ?? '').trim();
-    if (cv['text_mkrrxf48']) {
-      cv['text_mkrrxpjd'] = (await this.getCodeByItemName(cv['text_mkrrxf48']))
-        ?? cv['text_mkrrxpjd'] ?? 'NaN';
-    } else {
-      cv['text_mkrrxpjd'] = cv['text_mkrrxpjd'] ?? 'NaN';
-    }
-
-    // Solicitante
-    let solicitanteValue = String(enrichedFormData.data[fieldMapping.solicitante] ?? '').trim();
+  private async applySolicitanteField(
+    cv: Record<string, any>,
+    enrichedFormData: FormSubmissionData,
+    solicitanteField: string
+  ): Promise<void> {
+    let solicitanteValue = String(enrichedFormData.data[solicitanteField] ?? '').trim();
+    
     if (solicitanteValue && /^\d+$/.test(solicitanteValue)) {
       try {
         const item = await this.mondayItemRepository.findOne({ where: { item_id: solicitanteValue } });
@@ -1359,27 +1650,26 @@ export abstract class BaseFormSubmissionService {
     } else {
       cv['text_mkrrmmvv'] = 'NaN';
     }
+    
     cv['text_mkrrxqng'] = solicitanteValue;
+  }
 
-    // Objetivo
-    cv['text_mkrrhdh6'] = String(enrichedFormData.data[fieldMapping.objetivo] ?? '').trim();
-    if (cv['text_mkrrhdh6']) {
-      cv['text_mkrrraz2'] = (await this.getCodeByItemName(cv['text_mkrrhdh6']))
-        ?? cv['text_mkrrraz2'] ?? 'NaN';
-    } else {
-      cv['text_mkrrraz2'] = cv['text_mkrrraz2'] ?? 'NaN';
-    }
-
-    // Produto
-    cv['text_mkrrfqft'] = String(enrichedFormData.data[fieldMapping.produto] ?? '').trim();
+  private async applyProductField(
+    cv: Record<string, any>,
+    enrichedFormData: FormSubmissionData,
+    produtoField: string,
+    produtoBoardId?: string
+  ): Promise<void> {
+    cv['text_mkrrfqft'] = String(enrichedFormData.data[produtoField] ?? '').trim();
+    
     if (cv['text_mkrrfqft']) {
-      cv['text_mkrrjrnw'] = (await this.getCodeByItemName(cv['text_mkrrfqft'], produtoBoardId))
-        ?? cv['text_mkrrjrnw'] ?? 'NaN';
+      cv['text_mkrrjrnw'] = (await this.getCodeByItemName(cv['text_mkrrfqft'], produtoBoardId)) ?? cv['text_mkrrjrnw'] ?? 'NaN';
     } else {
       cv['text_mkrrjrnw'] = cv['text_mkrrjrnw'] ?? 'NaN';
     }
+  }
 
-    // Subproduto - Buscar se existe subproduto associado ao produto
+  private async applySubproductField(cv: Record<string, any>): Promise<void> {
     if (cv['text_mkrrfqft']) {
       const subproductData = await this.mondayService.getSubproductByProduct(cv['text_mkrrfqft']);
       if (subproductData) {
@@ -1394,44 +1684,47 @@ export abstract class BaseFormSubmissionService {
       cv['text_mkw8et4w'] = cv['text_mkw8et4w'] ?? '';
       cv['text_mkw8jfw0'] = cv['text_mkw8jfw0'] ?? '';
     }
+  }
 
-    // Segmento
-    cv['text_mkrrt32q'] = String(enrichedFormData.data[fieldMapping.segmento] ?? '').trim();
-    if (cv['text_mkrrt32q']) {
-      cv['text_mkrrhdf8'] = (await this.getCodeByItemName(cv['text_mkrrt32q']))
-        ?? cv['text_mkrrhdf8'] ?? 'NaN';
-    } else {
-      cv['text_mkrrhdf8'] = cv['text_mkrrhdf8'] ?? 'NaN';
-    }
-
-    // Campos do subitem
+  private applySubitemFields(
+    cv: Record<string, any>,
+    subitem: SubitemData,
+    firstBoardItemId: string
+  ): void {
     cv['data__1'] = cv['data__1'] ?? subitem['data__1'] ?? '';
     cv['n_meros__1'] = cv['n_meros__1'] ?? 1;
     cv['texto__1'] = cv['texto__1'] ?? 'Teste';
     cv['lista_suspensa5__1'] = cv['lista_suspensa5__1'] ?? 'Emocional';
     cv['lista_suspensa53__1'] = cv['lista_suspensa53__1'] ?? { labels: ['Autoridade', 'Exclusividade'] };
+    
     if (subitem['n_meros_mkkchcmk'] !== undefined) {
       cv['n_meros_mkkchcmk'] = subitem['n_meros_mkkchcmk'];
     }
 
-    // Campo text_mkvgjh0w do subitem
     const horaValue = subitem['conectar_quadros_mkkcnyr3'];
     if (horaValue !== undefined) {
       cv['text_mkvgjh0w'] = typeof horaValue === 'string' ? horaValue : String(horaValue);
     }
 
-    // conectar_quadros8__1 deve ser o item_id do primeiro board
     cv['conectar_quadros8__1'] = String(firstBoardItemId);
+  }
 
+  private async applyCompositeFields(
+    cv: Record<string, any>,
+    enrichedFormData: FormSubmissionData,
+    firstBoardItemId: string
+  ): Promise<void> {
     const composite = await this.buildCompositeTextFieldSecondBoard(enrichedFormData, firstBoardItemId) || '';
     if (composite) {
-      cv['text_mkr5kh2r'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]); 
-      cv['text_mkr3jr1s'] = composite+'-'+String(cv["n_meros__1"])+'-'+String(cv["texto6__1"]);
+      const suffix = `-${cv["n_meros__1"]}-${cv["texto6__1"]}`;
+      cv['text_mkr5kh2r'] = composite + suffix; 
+      cv['text_mkr3jr1s'] = composite + suffix;
     }
+  }
 
+  private buildSecondBoardItemName(cv: Record<string, any>, itemNameSuffix: string): string {
     const texto6 = cv['texto6__1'] ? String(cv['texto6__1']) : '';
-    const item_name = `teste excluir${itemNameSuffix}${texto6 ? ' - ' + texto6 : ''}`;
-    return { item_name, column_values: cv };
+    return `teste excluir${itemNameSuffix}${texto6 ? ' - ' + texto6 : ''}`;
   }
 
   /**
@@ -1454,98 +1747,184 @@ export abstract class BaseFormSubmissionService {
 
     let idx = 0;
     for (const sub of subitems) {
-      const initial = await this.buildSecondBoardPayloadFromSubitem(
+      const context: ProcessSubitemContext = {
         sub,
         enrichedFormData,
         firstBoardAllColumnValues,
         firstBoardItemId,
-        (this as any).secondBoardCorrelationFromSubmission || [],
-        (this as any).secondBoardCorrelationFromFirst || [],
-        itemNameSuffix
-      );
-
-      const itemNameSecond = initial.item_name || `teste excluir${itemNameSuffix}`;
-      const { baseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(initial.column_values);
-      
-      // Filtrar apenas as colunas conectar_quadros necess\u00e1rias
-      const filteredConnect: Record<string, any> = {};
-      for (const k of connectColumns) {
-        if (connectColumnsRaw[k] !== undefined) {
-          filteredConnect[k] = connectColumnsRaw[k];
-        }
-      }
-
-      // Pre-data por subitem (primeiro envio)
-      try {
-        await this.savePreObjectLocally(
-          {
-            board_id: secondBoardId,
-            item_name: itemNameSecond,
-            column_values: baseColumns,
-          },
-          `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_predat-idx_${idx}`
-        );
-      } catch (e) {
-        console.warn(`Falha ao gerar/salvar pre-data do segundo board ${serviceLabel} (subitem):`, e);
-      }
-
-      // Cria\u00e7\u00e3o do item
-      const secondItemId = await this.createMondayItem(
         secondBoardId,
         secondBoardGroupId,
-        itemNameSecond || fallbackItemName,
-        baseColumns
-      );
-      console.log(`Segundo board ${serviceLabel}: item criado para subitem ${idx} com ID ${secondItemId} (primeiro envio).`);
-
-      // Atualiza\u00e7\u00e3o das colunas conectar_quadros*
-      try {
-        const resolved = await this.resolveConnectBoardColumns(filteredConnect);
-        
-        // Adicionar pessoas3__1 (People) com base em lookup_mkrt36cj -> monday_items.team (segunda submiss\u00e3o do segundo board)
-        try {
-          const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
-          if (ppl) {
-            resolved["pessoas3__1"] = ppl;
-          }
-        } catch (e) {
-          console.warn(`Falha ao montar pessoas3__1 (segundo board ${serviceLabel}):`, e);
-        }
-        
-        if (Object.keys(resolved).length > 0) {
-          await this.saveObjectLocally(
-            {
-              board_id: secondBoardId,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_connect_columns_idx_${idx}`
-          );
-
-          await this.savePreObjectLocally(
-            {
-              board_id: secondBoardId,
-              item_id: secondItemId,
-              column_values: resolved,
-            },
-            `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_second_send_predat-idx_${idx}`
-          );
-
-          await this.mondayService.changeMultipleColumnValues(
-            secondBoardId,
-            secondItemId,
-            resolved
-          );
-        }
-      } catch (e) {
-        console.error(`Falha ao atualizar colunas conectar_quadros no segundo board ${serviceLabel} (subitem):`, e);
-      }
-
+        connectColumns,
+        fallbackItemName,
+        itemNameSuffix,
+        serviceLabel,
+        idx
+      };
+      
+      const secondItemId = await this.processSubitemToSecondBoard(context);
       results.push(secondItemId);
       idx++;
     }
 
     return results;
+  }
+
+  private async processSubitemToSecondBoard(context: ProcessSubitemContext): Promise<string> {
+    const { sub, enrichedFormData, firstBoardAllColumnValues, firstBoardItemId, secondBoardId, secondBoardGroupId, connectColumns, fallbackItemName, itemNameSuffix, serviceLabel, idx } = context;
+    
+    const initial = await this.buildSecondBoardPayloadFromSubitem(
+      sub,
+      enrichedFormData,
+      firstBoardAllColumnValues,
+      firstBoardItemId,
+      (this as any).secondBoardCorrelationFromSubmission || [],
+      (this as any).secondBoardCorrelationFromFirst || [],
+      itemNameSuffix
+    );
+
+    const itemNameSecond = initial.item_name || `teste excluir${itemNameSuffix}`;
+    const { baseColumns, connectColumnsRaw } = this.splitConnectBoardColumns(initial.column_values);
+    const filteredConnect = this.filterConnectColumns(connectColumnsRaw, connectColumns);
+
+    await this.saveSubitemPreData(enrichedFormData, secondBoardId, itemNameSecond, baseColumns, serviceLabel, idx);
+
+    const secondItemId = await this.createSecondBoardItem(
+      secondBoardId,
+      secondBoardGroupId,
+      itemNameSecond,
+      fallbackItemName,
+      baseColumns,
+      serviceLabel,
+      idx
+    );
+
+    await this.updateSecondBoardConnectColumns(
+      enrichedFormData,
+      secondBoardId,
+      secondItemId,
+      filteredConnect,
+      serviceLabel,
+      idx
+    );
+
+    return secondItemId;
+  }
+
+  private filterConnectColumns(
+    connectColumnsRaw: Record<string, any>,
+    connectColumns: string[]
+  ): Record<string, any> {
+    const filtered: Record<string, any> = {};
+    for (const k of connectColumns) {
+      if (connectColumnsRaw[k] !== undefined) {
+        filtered[k] = connectColumnsRaw[k];
+      }
+    }
+    return filtered;
+  }
+
+  private async saveSubitemPreData(
+    enrichedFormData: FormSubmissionData,
+    secondBoardId: string,
+    itemNameSecond: string,
+    baseColumns: Record<string, any>,
+    serviceLabel: string,
+    idx: number
+  ): Promise<void> {
+    try {
+      await this.savePreObjectLocally(
+        {
+          board_id: secondBoardId,
+          item_name: itemNameSecond,
+          column_values: baseColumns,
+        },
+        `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_predat-idx_${idx}`
+      );
+    } catch (e) {
+      console.warn(`Falha ao gerar/salvar pre-data do segundo board ${serviceLabel} (subitem):`, e);
+    }
+  }
+
+  private async createSecondBoardItem(
+    secondBoardId: string,
+    secondBoardGroupId: string,
+    itemNameSecond: string,
+    fallbackItemName: string,
+    baseColumns: Record<string, any>,
+    serviceLabel: string,
+    idx: number
+  ): Promise<string> {
+    const secondItemId = await this.createMondayItem(
+      secondBoardId,
+      secondBoardGroupId,
+      itemNameSecond || fallbackItemName,
+      baseColumns
+    );
+    console.log(`Segundo board ${serviceLabel}: item criado para subitem ${idx} com ID ${secondItemId} (primeiro envio).`);
+    return secondItemId;
+  }
+
+  private async updateSecondBoardConnectColumns(
+    enrichedFormData: FormSubmissionData,
+    secondBoardId: string,
+    secondItemId: string,
+    filteredConnect: Record<string, any>,
+    serviceLabel: string,
+    idx: number
+  ): Promise<void> {
+    try {
+      const resolved = await this.resolveConnectBoardColumns(filteredConnect);
+      await this.addPeopleFieldToResolved(enrichedFormData, resolved, serviceLabel);
+      
+      if (Object.keys(resolved).length > 0) {
+        await this.saveSecondBoardUpdates(enrichedFormData, secondBoardId, secondItemId, resolved, serviceLabel, idx);
+        await this.mondayService.changeMultipleColumnValues(secondBoardId, secondItemId, resolved);
+      }
+    } catch (e) {
+      console.error(`Falha ao atualizar colunas conectar_quadros no segundo board ${serviceLabel} (subitem):`, e);
+    }
+  }
+
+  private async addPeopleFieldToResolved(
+    enrichedFormData: FormSubmissionData,
+    resolved: Record<string, any>,
+    serviceLabel: string
+  ): Promise<void> {
+    try {
+      const ppl = await this.buildPeopleFromLookupObjetivo(enrichedFormData?.data);
+      if (ppl) {
+        resolved["pessoas3__1"] = ppl;
+      }
+    } catch (e) {
+      console.warn(`Falha ao montar pessoas3__1 (segundo board ${serviceLabel}):`, e);
+    }
+  }
+
+  private async saveSecondBoardUpdates(
+    enrichedFormData: FormSubmissionData,
+    secondBoardId: string,
+    secondItemId: string,
+    resolved: Record<string, any>,
+    serviceLabel: string,
+    idx: number
+  ): Promise<void> {
+    await this.saveObjectLocally(
+      {
+        board_id: secondBoardId,
+        item_id: secondItemId,
+        column_values: resolved,
+      },
+      `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_connect_columns_idx_${idx}`
+    );
+
+    await this.savePreObjectLocally(
+      {
+        board_id: secondBoardId,
+        item_id: secondItemId,
+        column_values: resolved,
+      },
+      `${enrichedFormData.id || 'submission'}_${serviceLabel}_second_board_second_send_predat-idx_${idx}`
+    );
   }
 }
 
